@@ -22,13 +22,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Default implementation which uses simple round-robin to choose next {@link EventExecutor}.
  */
+// 此实现均为轮询从0 至 执行器数量-1
 @UnstableApi
 public final class DefaultEventExecutorChooserFactory implements EventExecutorChooserFactory {
 
+    // 饿汉单例
     public static final DefaultEventExecutorChooserFactory INSTANCE = new DefaultEventExecutorChooserFactory();
 
     private DefaultEventExecutorChooserFactory() { }
 
+    // 实现的获取执行器方法内部就是将下方的两个选择器通过判断执行器的个数去选择使用哪个选择
     @SuppressWarnings("unchecked")
     @Override
     public EventExecutorChooser newChooser(EventExecutor[] executors) {
@@ -39,10 +42,13 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         }
     }
 
+    // 判断是否是二的幂次方
+    // 是否是二的力量，如果是幂次方则会对运算提高效率，因为采用了&位运算而第二个算法采用了%运算这也是他们的区别
     private static boolean isPowerOfTwo(int val) {
         return (val & -val) == val;
     }
 
+    // 如果是2的幂次方则采用这个算法此算法采用了位运算&符号进行计算的所以效率较高
     private static final class PowerOfTwoEventExecutorChooser implements EventExecutorChooser {
         private final AtomicInteger idx = new AtomicInteger();
         private final EventExecutor[] executors;
@@ -57,6 +63,7 @@ public final class DefaultEventExecutorChooserFactory implements EventExecutorCh
         }
     }
 
+    // 与上方的区别在于采用了%进行计算效率会有低所以设置数量时减一是2的幂次方如4、8、16、32等
     private static final class GenericEventExecutorChooser implements EventExecutorChooser {
         private final AtomicInteger idx = new AtomicInteger();
         private final EventExecutor[] executors;

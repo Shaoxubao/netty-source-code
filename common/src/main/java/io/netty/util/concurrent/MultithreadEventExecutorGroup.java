@@ -27,13 +27,32 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Abstract base class for {@link EventExecutorGroup} implementations that handles their tasks with multiple threads at
  * the same time.
+ *
+ * MultithreadEventExecutorGroup继承AbstractEventExecutorGroup的子类，而此类做了对线程的大多的实现，
+ * 从名字可以看出他是多线程事件执行组，而netty是事件驱动的所以在很多定义里都有这个event事件做了标注
+ * 可以看出他也是一个抽象类说明它内部有一些抽象方法需要子类实现去定制一些特制的功能。
  */
 public abstract class MultithreadEventExecutorGroup extends AbstractEventExecutorGroup {
 
+    // 执行器数组这个EventExecutor是group管理的执行器，在next方法可以看到他是返回的此执行器
+    // 采用了final修饰并且采用了数组说明他的长度是固定的
+    // 需要注意固定的修饰因为后面再使用的时候会有引用
     private final EventExecutor[] children;
+
+    // 此set是对上方的执行器数组的一个副本，并且这个副本只读。
     private final Set<EventExecutor> readonlyChildren;
+
+    // 中断执行器的数量，如果group被中断则会遍历调用children的中断方法，而每个children被中断都会进行一个计数
+    // 而terminatedChildren则是对中断children的计数，为何使用后面再中断将会讲述
     private final AtomicInteger terminatedChildren = new AtomicInteger();
+
+    // 中断执行的返回结果，因为需要关闭时一个执行组所以为了异步执行所以返回了一个应答然后根据用于调用去决定是等待获取结果
+    // 还是去设置一个结果事件，之前在讲述future的时候详细介绍过，等下讲述的时候将会详细介绍他的使用
     private final Promise<?> terminationFuture = new DefaultPromise(GlobalEventExecutor.INSTANCE);
+
+    // 执行的选择器，什么是选择器呢，因为是线程组那么在来任务的时候将会选择使用哪个执行器去执行这个任务
+    // 而此选择器则用到了，之前我们看到的定义next方法其实他的实现就是使用了这个选择器去返回执行器
+    // 具体使用讲到的地方会详细说明
     private final EventExecutorChooserFactory.EventExecutorChooser chooser;
 
     /**
@@ -43,7 +62,12 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * @param threadFactory     the ThreadFactory to use, or {@code null} if the default should be used.
      * @param args              arguments which will passed to each {@link #newChild(Executor, Object...)} call
      */
+    // 线程池（线程执行组）的构造器
+    // nThreads 之前说过children是限制长度的而此参数就是用来设置此线程池的线程数大小
+    // threadFactory 线程的创建工厂，用于创建线程
+    // args 在创建执行器的时候传入固定参数，使用时将会讲述
     protected MultithreadEventExecutorGroup(int nThreads, ThreadFactory threadFactory, Object... args) {
+        // 这里有个小逻辑如果传入的线程工厂不是null则把工厂包装给一个executor。如果默认传null则会用默认的线程工厂
         this(nThreads, threadFactory == null ? null : new ThreadPerTaskExecutor(threadFactory), args);
     }
 
@@ -54,7 +78,9 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * @param executor          the Executor to use, or {@code null} if the default should be used.
      * @param args              arguments which will passed to each {@link #newChild(Executor, Object...)} call
      */
+    // 除了传入线程工厂还有一个做法就是传入一个executor，上一个构造就是对此构造的封装
     protected MultithreadEventExecutorGroup(int nThreads, Executor executor, Object... args) {
+        // 传入了默认的执行器的选择器
         this(nThreads, executor, DefaultEventExecutorChooserFactory.INSTANCE, args);
     }
 
@@ -65,22 +91,27 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * @param executor          the Executor to use, or {@code null} if the default should be used.
      * @param chooserFactory    the {@link EventExecutorChooserFactory} to use.
      * @param args              arguments which will passed to each {@link #newChild(Executor, Object...)} call
+     *
      */
+    // 最终操作的构造器，扩展了执行器的选择器
     protected MultithreadEventExecutorGroup(int nThreads, Executor executor,
                                             EventExecutorChooserFactory chooserFactory, Object... args) {
         if (nThreads <= 0) {
             throw new IllegalArgumentException(String.format("nThreads: %d (expected: > 0)", nThreads));
         }
 
+        // 如果传入的执行器是空的则采用默认的线程工厂和默认的执行器
         if (executor == null) {
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
 
+        // 创建指定线程数的执行器数组
         children = new EventExecutor[nThreads];
 
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                // 使用了newChild方法创建执行器并且传入了executor和设置参数args
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {
@@ -92,9 +123,11 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
                         children[j].shutdownGracefully();
                     }
 
+                    // 虽然上面调用了中断方法但是他并不会立马终止，因为内部还有内容需要执行。
                     for (int j = 0; j < i; j ++) {
                         EventExecutor e = children[j];
                         try {
+                            // 判断当前的执行器是否终止了如果没有则等待获取结果
                             while (!e.isTerminated()) {
                                 e.awaitTermination(Integer.MAX_VALUE, TimeUnit.SECONDS);
                             }
@@ -108,26 +141,37 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
             }
         }
 
+        // 获取执行器的选择器
         chooser = chooserFactory.newChooser(children);
 
+        // 创建一个future的监听器用于监听终止结果
         final FutureListener<Object> terminationListener = new FutureListener<Object>() {
             @Override
             public void operationComplete(Future<Object> future) throws Exception {
+                // 当此执行组中的执行器被关闭的时候回调用此方法进入这里，这里进行终止数加一然后比较是否已经达到了执行器的总数
+                // 如果没有则跳过，如果有则设置当前执行器的终止future为success为null
                 if (terminatedChildren.incrementAndGet() == children.length) {
                     terminationFuture.setSuccess(null);
                 }
             }
         };
 
+        // 遍历创建好的执行器动态添加终止future的结果监听器，当监听器触发则会进入上方的内部类实现
         for (EventExecutor e: children) {
             e.terminationFuture().addListener(terminationListener);
         }
 
+        // 创建一个children的镜像set
         Set<EventExecutor> childrenSet = new LinkedHashSet<EventExecutor>(children.length);
+
+        // 拷贝这个set
         Collections.addAll(childrenSet, children);
+
+        // 并且设置此set内的所有数据不允许修改然后返回设置给readonlyChildren
         readonlyChildren = Collections.unmodifiableSet(childrenSet);
     }
 
+    // 获取默认的线程工厂并且传入当前类名
     protected ThreadFactory newDefaultThreadFactory() {
         return new DefaultThreadFactory(getClass());
     }
@@ -155,8 +199,10 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
      * called for each thread that will serve this {@link MultithreadEventExecutorGroup}.
      *
      */
+    // 声明了一个创建执行器的方法并且抽象的，因为每个执行器的实现都有特殊的操作所以此处抽象
     protected abstract EventExecutor newChild(Executor executor, Object... args) throws Exception;
 
+    // 之前说过调用线程组的关闭其实就是遍历执行器集合的关闭方法因为之前加了监听器去处理返回结果所以此处返回的future用于监听是否执行结束了
     @Override
     public Future<?> shutdownGracefully(long quietPeriod, long timeout, TimeUnit unit) {
         for (EventExecutor l: children) {
