@@ -63,6 +63,7 @@ public abstract class AbstractNioByteChannel extends AbstractNioChannel {
      * @param ch                the underlying {@link SelectableChannel} on which it operates
      */
     protected AbstractNioByteChannel(Channel parent, SelectableChannel ch) {
+        // 毫无疑问，客户端关心的是 OP_READ 事件，等待读取服务端返回数据
         super(parent, ch, SelectionKey.OP_READ);
     }
 

@@ -300,7 +300,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
-            channel = channelFactory.newChannel(); // 1、创建NioServerSocketChannel实例(ReflectiveChannelFactory在.channel()时已经设置)
+            channel = channelFactory.newChannel(); // 1、创建NioServerSocketChannel实例(Channel 的实例化,ReflectiveChannelFactory在.channel()时已经设置,调用相应 Channel 的无参构造方法)
 
             // 模板设计模式(父类运行过程中会调用多个方法，子类对特定的方法进行覆写)
             init(channel);                         // 2、初始化NioServerSocketChannel，这是一个抽象方法，ServerBootStrap对此进行了覆盖
