@@ -57,6 +57,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
     volatile EventLoopGroup group;
     @SuppressWarnings("deprecation")
+    // 这个工厂类最终创建的通道实例，就是channel方法指定的NioServerSocketChannel
     private volatile ChannelFactory<? extends C> channelFactory;
     private volatile SocketAddress localAddress;
     private final Map<ChannelOption<?>, Object> options = new ConcurrentHashMap<ChannelOption<?>, Object>();
@@ -261,7 +262,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
-        final ChannelFuture regFuture = initAndRegister();
+        final ChannelFuture regFuture = initAndRegister(); // 初始化NioServerSocketChannel，并注册到bossGroup中
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
             return regFuture;
@@ -299,8 +300,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
-            channel = channelFactory.newChannel();
-            init(channel);
+            channel = channelFactory.newChannel(); // 1、创建NioServerSocketChannel实例(ReflectiveChannelFactory在.channel()时已经设置)
+
+            // 模板设计模式(父类运行过程中会调用多个方法，子类对特定的方法进行覆写)
+            init(channel);                         // 2、初始化NioServerSocketChannel，这是一个抽象方法，ServerBootStrap对此进行了覆盖
         } catch (Throwable t) {
             if (channel != null) {
                 // channel can be null if newChannel crashed (eg SocketException("too many open files"))
@@ -312,7 +315,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
-        ChannelFuture regFuture = config().group().register(channel);
+        ChannelFuture regFuture = config().group().register(channel); // 3、NioServerSocketChannel注册到parentGroup中
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
                 channel.close();

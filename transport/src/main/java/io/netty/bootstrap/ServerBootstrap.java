@@ -75,7 +75,7 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
      * {@link Channel}'s.
      */
     public ServerBootstrap group(EventLoopGroup parentGroup, EventLoopGroup childGroup) {
-        super.group(parentGroup);
+        super.group(parentGroup); // 将parentGroup传递给父类AbstractBootstrap处理
         if (this.childGroup != null) {
             throw new IllegalStateException("childGroup set already");
         }
@@ -121,18 +121,23 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
     }
 
     @Override
-    void init(Channel channel) {
+    void init(Channel channel) { // channel参数类型就是NioServerSocketChannel
+
+        // 1、为NioServerSocketChannel设置option方法设置的参数
         setChannelOptions(channel, options0().entrySet().toArray(EMPTY_OPTION_ARRAY), logger);
+        // 2、为NioServerSocketChannel设置attr方法设置的参数
         setAttributes(channel, attrs0().entrySet().toArray(EMPTY_ATTRIBUTE_ARRAY));
 
         ChannelPipeline p = channel.pipeline();
 
+        // 4、为NioSocketChannel设置默认的处理器ServerBootstrapAcceptor，并将相关参数通过构造方法传给ServerBootstrapAcceptor
         final EventLoopGroup currentChildGroup = childGroup;
         final ChannelHandler currentChildHandler = childHandler;
         final Entry<ChannelOption<?>, Object>[] currentChildOptions =
                 childOptions.entrySet().toArray(EMPTY_OPTION_ARRAY);
         final Entry<AttributeKey<?>, Object>[] currentChildAttrs = childAttrs.entrySet().toArray(EMPTY_ATTRIBUTE_ARRAY);
 
+        // 3、为NioServerSocketChannel设置通过handler方法指定的处理器
         p.addLast(new ChannelInitializer<Channel>() {
             @Override
             public void initChannel(final Channel ch) {
@@ -142,6 +147,11 @@ public class ServerBootstrap extends AbstractBootstrap<ServerBootstrap, ServerCh
                     pipeline.addLast(handler);
                 }
 
+                // 添加一个默认的处理器ServerBootstrapAcceptor,客户端连接请求的处理器。
+                // 当接受到一个客户端请求之后，Netty会将创建一个代表客户端的NioSocketChannel对象。
+                // 而我们通过ServerBoodStrap指定的channelHandler、childOption、childAtrr、childGroup等参数，也需要设置到NioSocketChannel中。
+                // 但是明显现在，由于只是服务端刚启动，没有接收到任何客户端请求，还没有NioSocketChannel实例，因此这些参数要保存到ServerBootstrapAcceptor中，
+                // 等到接收到客户端连接的时候，再将这些参数进行设置，我们可以看到这些参数通过构造方法传递给了ServerBootstrapAcceptor。
                 ch.eventLoop().execute(new Runnable() {
                     @Override
                     public void run() {
