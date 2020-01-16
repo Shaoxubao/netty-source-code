@@ -462,12 +462,19 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                 return;
             }
 
+            // 将这个 eventLoop 实例设置给这个 channel，从此这个 channel 就是有 eventLoop 的了
+            // 我觉得这一步其实挺关键的，因为后续该 channel 中的所有异步操作，都要提交给这个 eventLoop 来执行
             AbstractChannel.this.eventLoop = eventLoop;
 
+            // 如果发起 register 动作的线程就是 eventLoop 实例中的线程，那么直接调用 register0(promise)
+            // 对于我们来说，它不会进入到这个分支，
+            // 之所以有这个分支，是因为我们是可以 unregister，然后再 register 的，后面再仔细看
             if (eventLoop.inEventLoop()) {
                 register0(promise);
             } else {
                 try {
+                    // 否则，提交任务给 eventLoop，eventLoop 中的线程会负责调用 register0(promise)
+                    // 到这里，我们要明白，NioEventLoop 中是还没有实例化 Thread 实例的
                     eventLoop.execute(new Runnable() {
                         @Override
                         public void run() {
@@ -493,19 +500,30 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                     return;
                 }
                 boolean firstRegistration = neverRegistered;
+                // *** 进行 JDK 底层的操作：Channel 注册到 Selector 上 (子类AbstractNioChannel中实现)***
                 doRegister();
                 neverRegistered = false;
                 registered = true;
+                // 到这里，就算是 registered 了
 
                 // Ensure we call handlerAdded(...) before we actually notify the promise. This is needed as the
                 // user may already fire events through the pipeline in the ChannelFutureListener.
+                // 这一步也很关键，因为这涉及到了 ChannelInitializer 的 init(channel)
+                // 我们之前说过，init 方法会将 ChannelInitializer 内部添加的 handlers 添加到 pipeline 中
                 pipeline.invokeHandlerAddedIfNeeded();
 
+                // 设置当前 promise 的状态为 success
+                // 因为当前 register 方法是在 eventLoop 中的线程中执行的，需要通知提交 register 操作的线程
                 safeSetSuccess(promise);
+
+                // 当前的 register 操作已经成功，该事件应该被 pipeline 上
+                // 所有关心 register 事件的 handler 感知到，往 pipeline 中扔一个事件
                 pipeline.fireChannelRegistered();
                 // Only fire a channelActive if the channel has never been registered. This prevents firing
                 // multiple channel actives if the channel is deregistered and re-registered.
+                // 这里 active 指的是 channel 已经打开
                 if (isActive()) {
+                    // 如果该 channel 是第一次执行 register，那么 fire ChannelActive 事件
                     if (firstRegistration) {
                         pipeline.fireChannelActive();
                     } else if (config().isAutoRead()) {
@@ -513,6 +531,9 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
                         // again so that we process inbound data.
                         //
                         // See https://github.com/netty/netty/issues/4805
+
+                        // 该 channel 之前已经 register 过了，
+                        // 这里让该 channel 立马去监听通道中的 OP_READ 事件
                         beginRead();
                     }
                 }

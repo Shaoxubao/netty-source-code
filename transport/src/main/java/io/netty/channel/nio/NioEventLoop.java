@@ -437,6 +437,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    // 这段代码是 NioEventLoop 的核心，这里介绍两点：
+    // 首先，会根据 hasTasks() 的结果来决定是执行 selectNow() 还是 select(oldWakenUp)，这个应该好理解。如果有任务正在等待，那么应该使用无阻塞的 selectNow()，如果没有任务在等待，那么就可以使用带阻塞的 select 操作。
+    // ioRatio 控制 IO 操作所占的时间比重：
+    // 如果设置为 100%，那么先执行 IO 操作，然后再执行任务队列中的任务。
+    // 如果不是 100%，那么先执行 IO 操作，然后执行 taskQueue 中的任务，但是需要控制执行任务的总时间。也就是说，非 IO 操作可以占用的时间，通过 ioRatio 以及这次 IO 操作耗时计算得出。
+    // 不断地做 select 操作和轮询 taskQueue 这个队列
     @Override
     protected void run() {
         int selectCnt = 0;
@@ -444,6 +450,14 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             try {
                 int strategy;
                 try {
+                    // selectStrategy 终于要派上用场了
+                    // 它有两个值，一个是 CONTINUE 一个是 SELECT
+                    // 针对这块代码，我们分析一下。
+                    // 1. 如果 taskQueue 不为空，也就是 hasTasks() 返回 true，
+                    //         那么执行一次 selectNow()，该方法不会阻塞
+                    // 2. 如果 hasTasks() 返回 false，那么执行 SelectStrategy.SELECT 分支，
+                    //    进行 select(...)，这块是带阻塞的
+                    // 这个很好理解，就是按照是否有任务在排队来决定是否可以进行阻塞
                     strategy = selectStrategy.calculateStrategy(selectNowSupplier, hasTasks());
                     switch (strategy) {
                     case SelectStrategy.CONTINUE:
@@ -460,6 +474,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                         nextWakeupNanos.set(curDeadlineNanos);
                         try {
                             if (!hasTasks()) {
+                                // 如果 !hasTasks()，那么进到这个 select 分支，这里 select 带阻塞的
                                 strategy = select(curDeadlineNanos);
                             }
                         } finally {
@@ -482,23 +497,30 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 selectCnt++;
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
+                // 默认地，ioRatio 的值是 50
                 final int ioRatio = this.ioRatio;
                 boolean ranTasks;
                 if (ioRatio == 100) {
+                    // 如果 ioRatio 设置为 100，那么先执行 IO 操作，然后在 finally 块中执行 taskQueue 中的任务
                     try {
                         if (strategy > 0) {
+                            // 1. 执行 IO 操作。因为前面 select 以后，可能有些 channel 是需要处理的。
                             processSelectedKeys();
                         }
                     } finally {
                         // Ensure we always run tasks.
+                        // 2. 执行非 IO 任务，也就是 taskQueue 中的任务
                         ranTasks = runAllTasks();
                     }
                 } else if (strategy > 0) {
+                    // 如果 ioRatio 不是 100，那么根据 IO 操作耗时，限制非 IO 操作耗时
                     final long ioStartTime = System.nanoTime();
                     try {
+                        // 执行 IO 操作
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 根据 IO 操作消耗的时间，计算执行非 IO 操作（runAllTasks）可以用多少时间.
                         final long ioTime = System.nanoTime() - ioStartTime;
                         ranTasks = runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }

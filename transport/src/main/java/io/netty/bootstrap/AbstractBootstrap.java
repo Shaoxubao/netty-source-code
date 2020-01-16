@@ -302,7 +302,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         try {
             channel = channelFactory.newChannel(); // 1、创建NioServerSocketChannel实例(Channel 的实例化,ReflectiveChannelFactory在.channel()时已经设置,调用相应 Channel 的无参构造方法)
 
-            // 模板设计模式(父类运行过程中会调用多个方法，子类对特定的方法进行覆写)
+            // 模板设计模式(父类运行过程中会调用多个方法，子类对特定的方法进行覆写)，对于 Bootstrap 和 ServerBootstrap，这里面有些不一样
             init(channel);                         // 2、初始化NioServerSocketChannel，这是一个抽象方法，ServerBootStrap对此进行了覆盖
         } catch (Throwable t) {
             if (channel != null) {
@@ -315,6 +315,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        // config().group() 方法会返回前面实例化的 NioEventLoopGroup 的实例，然后调用其 register(channel) 方法
         ChannelFuture regFuture = config().group().register(channel); // 3、NioServerSocketChannel注册到parentGroup中
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
@@ -333,6 +334,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         //         because bind() or connect() will be executed *after* the scheduled registration task is executed
         //         because register(), bind(), and connect() are all bound to the same thread.
 
+        // 源码中说得很清楚，如果到这里，说明后续可以进行 connect() 或 bind() 了，因为两种情况：
+        // 1. 如果 register 动作是在 eventLoop 中发起的，那么到这里的时候，register 一定已经完成
+        // 2. 如果 register 任务已经提交到 eventLoop 中，也就是进到了 eventLoop 中的 taskQueue 中，
+        // 由于后续的 connect 或 bind 也会进入到同一个 eventLoop 的 queue 中，所以一定是会先 register 成功，才会执行 connect 或 bind
         return regFuture;
     }
 
