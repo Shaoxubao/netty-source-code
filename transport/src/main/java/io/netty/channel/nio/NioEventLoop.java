@@ -111,10 +111,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
     /**
      * The NIO {@link Selector}.
      */
+    // 虽然我们还没看创建 selector 的代码，但我们已经知道，在 Netty 中 Selector 是跟着线程池中的线程走的。
+    // 也就是说，并非一个线程池一个 Selector 实例，而是线程池中每一个线程都有一个 Selector 实例
     private Selector selector;
     private Selector unwrappedSelector;
     private SelectedSelectionKeySet selectedKeys;
 
+    // 它由 NioEventLoopGroup 传进来，前面我们说了一个线程池有一个 selectorProvider，用于创建 Selector 实例
     private final SelectorProvider provider;
 
     private static final long AWAKE = -1L;
@@ -128,6 +131,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
 
     private final SelectStrategy selectStrategy;
 
+    // 这是 IO 任务的执行时间比例，因为每个线程既有 IO 任务执行，也有非 IO 任务需要执行，所以该参数为了保证有足够时间是给 IO 的。这里也不需要急着去理解什么 IO 任务、什么非 IO 任务
     private volatile int ioRatio = 50;
     private int cancelledKeys;
     private boolean needsToSelectAgain;
@@ -139,6 +143,8 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 rejectedExecutionHandler);
         this.provider = ObjectUtil.checkNotNull(selectorProvider, "selectorProvider");
         this.selectStrategy = ObjectUtil.checkNotNull(strategy, "selectStrategy");
+
+        // 开启 NIO 中最重要的组件：Selector
         final SelectorTuple selectorTuple = openSelector();
         this.selector = selectorTuple.selector;
         this.unwrappedSelector = selectorTuple.unwrappedSelector;

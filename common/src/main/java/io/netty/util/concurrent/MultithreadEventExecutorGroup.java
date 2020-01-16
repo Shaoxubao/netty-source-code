@@ -144,7 +144,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         // 获取执行器的选择器
         chooser = chooserFactory.newChooser(children);
 
-        // 创建一个future的监听器用于监听终止结果
+        // 创建一个future的监听器用于监听终止结果,给池中每一个线程都设置这个 listener，当监听到所有线程都 terminate 以后，这个线程池就算真正的 terminate 了。
         final FutureListener<Object> terminationListener = new FutureListener<Object>() {
             @Override
             public void operationComplete(Future<Object> future) throws Exception {
