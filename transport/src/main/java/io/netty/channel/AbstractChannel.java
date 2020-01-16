@@ -494,6 +494,10 @@ public abstract class AbstractChannel extends DefaultAttributeMap implements Cha
             }
         }
 
+        // 回到 register0，在完成 jdk 底层的注册后，会触发服务端 ChannelPipeline 上的 handlerAdded 和 channelRegistered 两个事件。
+        // 事件回调的原理大家应该都知道。这里要关注一下 handlerAdded 这个事件和 ChannelInitializer 这个处理器。我们先回顾一下我们的用户代码：
+        // 我们通过 b.handle(new ServerHandler()) 方法给服务端连接添加处理器，传入的只有一个处理器，
+        // 那么如果我们想给服务端 Channel 添加多个处理器该怎么做呢？实际上很简单，我们只需要传入一个 ChannelInitializer，然后在 initChannel() 方法中添加处理器就行
         private void register0(ChannelPromise promise) {
             try {
                 // check if the channel is still open as it could be closed in the mean time when the register

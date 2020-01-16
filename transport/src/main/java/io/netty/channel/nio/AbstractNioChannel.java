@@ -386,6 +386,11 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
+                // jdk 底层的 register() 的第三个参数是 attachment，传进去的 this 是 Netty 自己的 Channel。这步操作非常巧妙。
+                // 之前我们可能会疑惑，Selector 每次返回的是 jdk 底层的 Channel，
+                // 那么 Netty 是怎么知道它对应哪个 Netty Channel 的呢？这里我们找到了答案：Netty 通过把自己的 Channel 作为 attachment 绑定在 jdk 底层的 Channel 上，
+                // 在每次返回的时候带出来
+
                 // 附 JDK 中 Channel 的 register 方法：
                 // public final SelectionKey register(Selector sel, int ops, Object att) {...}
                 // 这里做了 JDK 底层的 register 操作，将 SocketChannel(或 ServerSocketChannel) 注册到 Selector 中，并且可以看到，这里的监听集合设置为了 0，也就是什么都不监听

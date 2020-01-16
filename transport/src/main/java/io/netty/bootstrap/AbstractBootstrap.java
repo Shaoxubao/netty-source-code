@@ -298,6 +298,12 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
+    // 首先调用 newChannel() 创建服务端的 Channel，在这个过程中会先调用 jdk 底层的 api 来创建一个 jdk 底层的 Channel，
+    // 然后 Netty 将其包装成一个自己的 Channel，同时会创建一些基本的组件（unsafe,pipeline）绑定在此 Channel 上；
+    // 然后调用 init() 方法初始化服务端 Channel，这个过程最重要的也就是为服务端 Channel 添加一个连接处理器 ServerBootstrapAcceptor；
+    // 随后调用 register() 方法注册 Selector，这个过程中 Netty 将 jdk 底层的 Channel 注册到事件轮询器 Selector 上，
+    // 并将 Netty 自己的 Channel 作为 attachment 绑定到对应的 jdk 底层的 Channel 上；
+    // 最后调用 doBind() 方法调用 jdk 底层的 api 实现对本地端口的监听，绑定后 Netty 会重新向 Selector 注册一个 OP_ACCEPT 事件，这样 Netty 就可以接受新的连接了
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
