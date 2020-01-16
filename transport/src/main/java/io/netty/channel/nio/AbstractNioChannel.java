@@ -247,12 +247,19 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 }
 
                 boolean wasActive = isActive();
+                // 大家自己点进去看 doConnect 方法
+                // 这一步会做 JDK 底层的 SocketChannel connect，然后设置 interestOps 为 SelectionKey.OP_CONNECT
+                // 返回值代表是否已经连接成功
                 if (doConnect(remoteAddress, localAddress)) {
+
+                    // 处理连接成功的情况
                     fulfillConnectPromise(promise, wasActive);
                 } else {
                     connectPromise = promise;
                     requestedRemoteAddress = remoteAddress;
 
+                    // 下面这块代码，在处理连接超时的情况，代码很简单
+                    // 这里用到了 NioEventLoop 的定时任务的功能
                     // Schedule connect timeout.
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
                     if (connectTimeoutMillis > 0) {

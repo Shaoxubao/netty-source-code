@@ -968,6 +968,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return this;
     }
 
+    // bind 操作和 connect 一样，都是 Outbound 类型的，所以都是 tail 开始
     @Override
     public final ChannelFuture bind(SocketAddress localAddress, ChannelPromise promise) {
         return tail.bind(localAddress, promise);
@@ -978,6 +979,9 @@ public class DefaultChannelPipeline implements ChannelPipeline {
         return tail.connect(remoteAddress, promise);
     }
 
+    // connect 操作是交给 pipeline 来执行的。进入 pipeline 中，我们会发现，connect 这种 Outbound 类型的操作，是从 pipeline 的 tail 开始的
+    // 从 tail 开始往前找 out 类型的 handlers，每经过一个 handler，都执行里面的 connect() 方法，最后会到 head 中，因为 head 也是 Outbound 类型的，
+    // 我们需要的 connect 操作就在 head 中，它会负责调用 unsafe 中提供的 connect 方法
     @Override
     public final ChannelFuture connect(
             SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
@@ -1328,6 +1332,7 @@ public class DefaultChannelPipeline implements ChannelPipeline {
             // NOOP
         }
 
+        // 最后的 bind 操作又到了 head 中，由 head 来调用 unsafe 提供的 bind 方法
         @Override
         public void bind(
                 ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) {
