@@ -46,6 +46,16 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
     }
 
     @Override
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("新增Channel ,ChannelId = " + ctx.channel().id());
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("移除Channel ,ChannelId = " + ctx.channel().id());
+    }
+
+    @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         // Close the connection when an exception is raised.
         cause.printStackTrace();
