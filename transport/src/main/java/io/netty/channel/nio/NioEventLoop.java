@@ -745,11 +745,15 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         try {
             int selectCnt = 0;
             long currentTimeNanos = System.nanoTime();
+            // todo 因为select操作是阻塞的，如果长时间没有IO可用，就会造成NioEventLoop中的task积压。因此每次执行select操作都设定一个超时：
+            // todo 1.查询定时任务重最近要被执行的task还有多长时间执行.
+            // todo 2.这个时间加上0.5ms就是最大超时时间。
             // todo 计算出估算的截止时间,  意思是, select()操作不能超过selectDeadLineNanos这个时间, 不让它一直耗着,外面也可能有任务等着当前线程处理
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
 
             for (;;) {
-                // todo 计算超时时间
+                // todo 计算超时时间(阻塞时间(毫秒)=(截止时间-当前时间+0.5毫秒)),除以1000000表示将计算的时间转化为毫秒数
+                // 是否当前的定时任务队列中有任务的截止事件快到了(<=0.5ms)
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
                 if (timeoutMillis <= 0) { // todo 如果超时了 , 并且selectCnt==0 , 就进行非阻塞的 select() , break, 跳出for循环
                     if (selectCnt == 0) {
