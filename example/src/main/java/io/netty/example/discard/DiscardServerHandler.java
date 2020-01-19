@@ -15,8 +15,11 @@
  */
 package io.netty.example.discard;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.util.CharsetUtil;
+import io.netty.util.ReferenceCountUtil;
 
 /**
  * Handles a server-side channel.
@@ -26,6 +29,30 @@ public class DiscardServerHandler extends SimpleChannelInboundHandler<Object> {
     @Override
     public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
         // discard
+        try {
+            ByteBuf in = (ByteBuf) msg;
+
+            // 在netty中，对象的生命周期由引用计数器控制，ByteBuf就是这样，每个对象的初始化引用计数为1，调用一次release方法，引用计数器会减1，
+            // 当尝试访问计数器为0的，对象时会抛出IllegalReferenceCountException。
+            in.retain();
+            // 打印客户端输入，传输过来的的字符
+            System.out.print(in.toString(CharsetUtil.UTF_8));
+        } finally {
+            // ByteBuf是一个引用计数对象，这个对象必须显示地调用release()方法来释放。
+            // 请记住处理器的职责是释放所有传递到处理器的引用计数对象。
+            // 抛弃收到的数据
+            ReferenceCountUtil.release(msg);
+        }
+    }
+
+    @Override
+    public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("新增Channel ,ChannelId = " + ctx.channel().id());
+    }
+
+    @Override
+    public void handlerRemoved(ChannelHandlerContext ctx) throws Exception {
+        System.out.println("移除Channel ,ChannelId = " + ctx.channel().id());
     }
 
     @Override
