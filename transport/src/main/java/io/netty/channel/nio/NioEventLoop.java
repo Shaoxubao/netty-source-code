@@ -54,6 +54,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * 整体来看NioEventLoop的实现也不复杂，主要就干了两件事情：select IO以及消费task。
  * 因为select操作是阻塞的（尽管设置了超时时间），每次执行select时都会检查是否有新的task，有则优先执行task。这么做也是做大限度的提高EventLoop的吞吐量，减少阻塞时间。
  *
+ * NioEventLoop中维护了一个线程，线程启动时会调用NioEventLoop的run方法，执行I/O任务和非I/O任务：
+ *
+ * I/O任务：selectionKey中ready的事件，如accept、connect、read、write等，由processSelectedKeys方法触发。
+ * 非IO任务：添加到taskQueue中的任务，如register0、bind0等任务，由runAllTasks方法触发。
+ * 两种任务的执行时间比由变量ioRatio控制，默认为50，则表示允许非IO任务执行的时间与IO任务的执行时间相等。
  */
 public final class NioEventLoop extends SingleThreadEventLoop {
 
@@ -742,6 +747,27 @@ public final class NioEventLoop extends SingleThreadEventLoop {
      * 经过了上面12两次判断后, netty 进行阻塞式select(time) ,默认是1秒这时可会会出现空轮询的Bug
      * 判断3 如果经过阻塞式的轮询之后,出现的感兴趣的事件,或者任务队列又有新任务了,或者定时任务中有新任务了,或者被外部线程唤醒了 都直接退出循环
      * 如果前面都没出问题,最后检验是否出现了JDK空轮询的BUG
+     *
+     * 注释2：
+     * delayNanos(currentTimeNanos)：计算延迟任务队列中第一个任务的到期执行时间（即最晚还能延迟多长时间执行），默认返回1s。
+     * 每个SingleThreadEventExecutor都持有一个延迟执行任务的优先队列PriorityQueue，启动线程时，往队列中加入一个任务。
+     *
+     * 如果延迟任务队列中第一个任务的最晚还能延迟执行的时间小于500000纳秒，
+     * 且selectCnt == 0（selectCnt 用来记录selector.select方法的执行次数和标识是否执行过selector.selectNow()），
+     * 则执行selector.selectNow()方法并立即返回。
+     *
+     * 否则执行selector.select(timeoutMillis)。
+     *
+     * 如果已经存在ready的selectionKey，或者selector被唤醒，或者taskQueue不为空，或则scheduledTaskQueue不为空，则退出循环。
+     *
+     * 如果 selectCnt 没达到阈值SELECTOR_AUTO_REBUILD_THRESHOLD（默认512），则继续进行for循环。
+     * 其中 currentTimeNanos 在select操作之后会重新赋值当前时间，如果selector.select(timeoutMillis)行为真的阻塞了timeoutMillis，
+     * 第二次的timeoutMillis肯定等于0，此时selectCnt 为1，所以会直接退出for循环。
+     *
+     * 如果触发了epool cpu100%的bug，会发生什么？
+     * selector.select(timeoutMillis)操作会立即返回，不会阻塞timeoutMillis，导致 currentTimeNanos 几乎不变，这种情况下，
+     * 会反复执行selector.select(timeoutMillis)，变量selectCnt 会逐渐变大，当selectCnt 达到阈值，则执行rebuildSelector方法，
+     * 进行selector重建，解决cpu占用100%的bug。
      */
     private void select(boolean oldWakenUp) throws IOException {
         Selector selector = this.selector;
