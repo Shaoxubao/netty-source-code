@@ -405,6 +405,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     case SelectStrategy.CONTINUE:
                         continue;
                     case SelectStrategy.SELECT:
+                        // 轮询IO事件，等待事件的发生
                         select(wakenUp.getAndSet(false));
 
                         // 'wakenUp.compareAndSet(false, true)' is always evaluated
@@ -445,20 +446,26 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 cancelledKeys = 0;
                 needsToSelectAgain = false;
                 final int ioRatio = this.ioRatio;
+                // 如果ioRatio==100 就调用第一个 processSelectedKeys();  否则就调用第二个
                 if (ioRatio == 100) {
                     try {
+                        // 处理感兴趣事件
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 用于处理本eventLoop外的线程 扔到taskQueue中的任务
                         runAllTasks();
                     }
-                } else {
+                } else { // 因为ioRatio默认是50 , 所以第一次走else
                     final long ioStartTime = System.nanoTime();
                     try {
+                        // 处理IO事件
                         processSelectedKeys();
                     } finally {
                         // Ensure we always run tasks.
+                        // 根据处理IO事件耗时 ,控制 下面的runAllTasks执行任务不能超过 ioTime 时间
                         final long ioTime = System.nanoTime() - ioStartTime;
+                        // 这里面有聚合任务的逻辑
                         runAllTasks(ioTime * (100 - ioRatio) / ioRatio);
                     }
                 }
@@ -723,16 +730,28 @@ public final class NioEventLoop extends SingleThreadEventLoop {
         }
     }
 
+    /**
+     * 基于deadline的任务穿插处理逻辑
+     *
+     * 根据当前时间计算出本次for()的最迟截止时间, 也就是他的deadline
+     * 判断1 如果超过了 截止时间,selector.selectNow(); 直接退出
+     * 判断2 如果任务队列中出现了新的任务 selector.selectNow(); 直接退出
+     * 经过了上面12两次判断后, netty 进行阻塞式select(time) ,默认是1秒这时可会会出现空轮询的Bug
+     * 判断3 如果经过阻塞式的轮询之后,出现的感兴趣的事件,或者任务队列又有新任务了,或者定时任务中有新任务了,或者被外部线程唤醒了 都直接退出循环
+     * 如果前面都没出问题,最后检验是否出现了JDK空轮询的BUG
+     */
     private void select(boolean oldWakenUp) throws IOException {
         Selector selector = this.selector;
         try {
             int selectCnt = 0;
             long currentTimeNanos = System.nanoTime();
+            // todo 计算出估算的截止时间,  意思是, select()操作不能超过selectDeadLineNanos这个时间, 不让它一直耗着,外面也可能有任务等着当前线程处理
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
 
             for (;;) {
+                // todo 计算超时时间
                 long timeoutMillis = (selectDeadLineNanos - currentTimeNanos + 500000L) / 1000000L;
-                if (timeoutMillis <= 0) {
+                if (timeoutMillis <= 0) { // todo 如果超时了 , 并且selectCnt==0 , 就进行非阻塞的 select() , break, 跳出for循环
                     if (selectCnt == 0) {
                         selector.selectNow();
                         selectCnt = 1;
@@ -744,15 +763,31 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 // Selector#wakeup. So we need to check task queue again before executing select operation.
                 // If we don't, the task might be pended until select operation was timed out.
                 // It might be pended until idle timeout if IdleStateHandler existed in pipeline.
+                // todo 判断任务队列中时候还有别的任务, 如果有任务的话, 进入代码块, 非阻塞的select() 并且 break; 跳出循环
+                // todo 通过cas 线程安全的把 wakenUp设置成true表示退出select()方法, 已进入时,我们设置oldWakenUp是false
                 if (hasTasks() && wakenUp.compareAndSet(false, true)) {
                     selector.selectNow();
                     selectCnt = 1;
                     break;
                 }
 
+                ///todo ----------- 如上部分代码, 是 select()的deadLine及任务穿插处理逻辑-----------------------------------------------------
+
+                ///todo ----------- 如下, 是 阻塞式的select() -----------------------------------------------------
+
+                // todo  上面设置的超时时间没到,而且任务为空,进行阻塞式的 select() , timeoutMillis 默认1
+                // todo netty任务,现在可以放心大胆的 阻塞1秒去轮询 channel连接上是否发生的 selector感性的事件
                 int selectedKeys = selector.select(timeoutMillis);
+
+                // todo 表示当前已经轮询了SelectCnt次了
                 selectCnt ++;
 
+                // todo  阻塞完成轮询后,马上进一步判断 只要满足下面的任意一条. 也将退出无限for循环, select()
+                // todo  selectedKeys != 0      表示轮询到了事件
+                // todo  oldWakenUp             当前的操作是否需要唤醒
+                // todo  wakenUp.get()          可能被外部线程唤醒
+                // todo  hasTasks()             任务队列中又有新任务了
+                // todo   hasScheduledTasks()   当时定时任务队列里面也有任务
                 if (selectedKeys != 0 || oldWakenUp || wakenUp.get() || hasTasks() || hasScheduledTasks()) {
                     // - Selected something,
                     // - waken up by user, or
@@ -760,6 +795,9 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     // - a scheduled task is ready for processing
                     break;
                 }
+
+                // todo ------------ 如上, 是 阻塞式的select() -----------------------------------------------------
+
                 if (Thread.interrupted()) {
                     // Thread was interrupted so reset selected keys and break so we not run into a busy loop.
                     // As this is most likely a bug in the handler of the user or it's client library we will
@@ -775,11 +813,21 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                     break;
                 }
 
+                // todo 每次执行到这里就说明,已经进行了一次阻塞式操作 ,并且还没有监听到任何感兴趣的事件,也没有新的任务添加到队列, 记录当前的时间
                 long time = System.nanoTime();
+
+                // todo 如果  当前的时间 - 超时时间 >= 开始时间   把 selectCnt设置为1 , 表明已经进行了一次阻塞式操作
+                // todo 每次for循环都会判断, 当前时间 currentTimeNanos 不能超过预订的超时时间 timeoutMillis
+                // todo 但是,现在的情况是, 虽然已经进行了一次 时长为timeoutMillis时间的阻塞式select了,
+                // todo 然而, 我执行到当前代码的 时间 - 开始的时间 >= 超时的时间
+
+                // todo 但是,如果 当前时间- 超时时间< 开始时间, 也就是说,并没有阻塞select, 而是立即返回了, 就表明这是一次空轮询
+                // todo 而每次轮询   selectCnt ++;  于是有了下面的判断,
                 if (time - TimeUnit.MILLISECONDS.toNanos(timeoutMillis) >= currentTimeNanos) {
                     // timeoutMillis elapsed without anything selected.
                     selectCnt = 1;
                 } else if (SELECTOR_AUTO_REBUILD_THRESHOLD > 0 &&
+                        // todo  selectCnt如果大于 512 表示cpu确实在空轮询, 于是rebuild Selector
                         selectCnt >= SELECTOR_AUTO_REBUILD_THRESHOLD) {
                     // The selector returned prematurely many times in a row.
                     // Rebuild the selector to work around the problem.
@@ -787,10 +835,12 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                             "Selector.select() returned prematurely {} times in a row; rebuilding Selector {}.",
                             selectCnt, selector);
 
+                    // todo 它的逻辑创建一个新的selectKey , 把老的Selector上面的key注册进这个新的selector上面 , 进入查看
                     rebuildSelector();
                     selector = this.selector;
 
                     // Select again to populate selectedKeys.
+                    // todo 解决了Select空轮询的bug
                     selector.selectNow();
                     selectCnt = 1;
                     break;
