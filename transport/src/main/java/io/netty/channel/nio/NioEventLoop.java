@@ -51,6 +51,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * {@link SingleThreadEventLoop} implementation which register the {@link Channel}'s to a
  * {@link Selector} and so does the multi-plexing of these in the event loop.
  *
+ * 整体来看NioEventLoop的实现也不复杂，主要就干了两件事情：select IO以及消费task。
+ * 因为select操作是阻塞的（尽管设置了超时时间），每次执行select时都会检查是否有新的task，有则优先执行task。这么做也是做大限度的提高EventLoop的吞吐量，减少阻塞时间。
+ *
  */
 public final class NioEventLoop extends SingleThreadEventLoop {
 
@@ -751,6 +754,13 @@ public final class NioEventLoop extends SingleThreadEventLoop {
             // todo 计算出估算的截止时间,  意思是, select()操作不能超过selectDeadLineNanos这个时间, 不让它一直耗着,外面也可能有任务等着当前线程处理
             long selectDeadLineNanos = currentTimeNanos + delayNanos(currentTimeNanos);
 
+            // todo 整体来看一下这个for循环：
+
+            // todo 第1个if：如果timeoutMillis小于0，则立即执行一次异步的selectNow，跳出循环消费task。
+            // todo 第2个if：如果当前taskQueue中有task，并且没有被wakeup，则执行一次异步的selectNow，跳出循环消费task。
+            // todo 接下来执行select，并记次。
+            // todo 第3个if：如果有available keys 或者 被用户唤醒 或者 任务队列定时队列有任务则中断。
+            // todo 最后就是重建selector的过程。
             for (;;) {
                 // todo 计算超时时间(阻塞时间(毫秒)=(截止时间-当前时间+0.5毫秒)),除以1000000表示将计算的时间转化为毫秒数
                 // 是否当前的定时任务队列中有任务的截止事件快到了(<=0.5ms)
