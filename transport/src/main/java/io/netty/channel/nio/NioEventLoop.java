@@ -776,7 +776,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 ///todo ----------- 如下, 是 阻塞式的select() -----------------------------------------------------
 
                 // todo  上面设置的超时时间没到,而且任务为空,进行阻塞式的 select() , timeoutMillis 默认1
-                // todo netty任务,现在可以放心大胆的 阻塞1秒去轮询 channel连接上是否发生的 selector感性的事件
+                // todo netty任务,现在可以放心大胆的 阻塞1秒去轮询 channel连接上是否发生的 selector感兴趣的事件
                 int selectedKeys = selector.select(timeoutMillis);
 
                 // todo 表示当前已经轮询了SelectCnt次了
@@ -787,7 +787,7 @@ public final class NioEventLoop extends SingleThreadEventLoop {
                 // todo  oldWakenUp             当前的操作是否需要唤醒
                 // todo  wakenUp.get()          可能被外部线程唤醒
                 // todo  hasTasks()             任务队列中又有新任务了
-                // todo   hasScheduledTasks()   当时定时任务队列里面也有任务
+                // todo  hasScheduledTasks()    当时定时任务队列里面也有任务
                 if (selectedKeys != 0 || oldWakenUp || wakenUp.get() || hasTasks() || hasScheduledTasks()) {
                     // - Selected something,
                     // - waken up by user, or
