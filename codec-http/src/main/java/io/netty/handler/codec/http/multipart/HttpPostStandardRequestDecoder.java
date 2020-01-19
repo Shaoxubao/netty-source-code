@@ -26,7 +26,6 @@ import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.EndOfDataDec
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.ErrorDataDecoderException;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.MultiPartStatus;
 import io.netty.handler.codec.http.multipart.HttpPostRequestDecoder.NotEnoughDataDecoderException;
-import io.netty.util.internal.PlatformDependent;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -149,18 +148,13 @@ public class HttpPostStandardRequestDecoder implements InterfaceHttpPostRequestD
         this.request = checkNotNull(request, "request");
         this.charset = checkNotNull(charset, "charset");
         this.factory = checkNotNull(factory, "factory");
-        try {
-            if (request instanceof HttpContent) {
-                // Offer automatically if the given request is als type of HttpContent
-                // See #1089
-                offer((HttpContent) request);
-            } else {
-                undecodedChunk = buffer();
-                parseBody();
-            }
-        } catch (Throwable e) {
-            destroy();
-            PlatformDependent.throwException(e);
+        if (request instanceof HttpContent) {
+            // Offer automatically if the given request is als type of HttpContent
+            // See #1089
+            offer((HttpContent) request);
+        } else {
+            undecodedChunk = buffer();
+            parseBody();
         }
     }
 
@@ -484,10 +478,6 @@ public class HttpPostStandardRequestDecoder implements InterfaceHttpPostRequestD
             undecodedChunk.readerIndex(firstpos);
             throw e;
         } catch (IOException e) {
-            // error while decoding
-            undecodedChunk.readerIndex(firstpos);
-            throw new ErrorDataDecoderException(e);
-        } catch (IllegalArgumentException e) {
             // error while decoding
             undecodedChunk.readerIndex(firstpos);
             throw new ErrorDataDecoderException(e);

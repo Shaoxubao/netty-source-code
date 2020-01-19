@@ -22,7 +22,6 @@ import io.netty.channel.DefaultChannelConfig;
 import io.netty.channel.MessageSizeEstimator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.WriteBufferWaterMark;
-import io.netty.util.internal.ObjectUtil;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,10 +29,12 @@ import java.util.Map;
 import static io.netty.channel.unix.Limits.SSIZE_MAX;
 
 public class EpollChannelConfig extends DefaultChannelConfig {
+    final AbstractEpollChannel channel;
     private volatile long maxBytesPerGatheringWrite = SSIZE_MAX;
 
     EpollChannelConfig(AbstractEpollChannel channel) {
         super(channel);
+        this.channel = channel;
     }
 
     @Override
@@ -135,7 +136,7 @@ public class EpollChannelConfig extends DefaultChannelConfig {
      * {@link EpollMode#LEVEL_TRIGGERED}.
      */
     public EpollMode getEpollMode() {
-        return ((AbstractEpollChannel) channel).isFlagSet(Native.EPOLLET)
+        return channel.isFlagSet(Native.EPOLLET)
                 ? EpollMode.EDGE_TRIGGERED : EpollMode.LEVEL_TRIGGERED;
     }
 
@@ -148,17 +149,18 @@ public class EpollChannelConfig extends DefaultChannelConfig {
      * <strong>Be aware this config setting can only be adjusted before the channel was registered.</strong>
      */
     public EpollChannelConfig setEpollMode(EpollMode mode) {
-        ObjectUtil.checkNotNull(mode, "mode");
-
+        if (mode == null) {
+            throw new NullPointerException("mode");
+        }
         try {
             switch (mode) {
             case EDGE_TRIGGERED:
                 checkChannelNotRegistered();
-                ((AbstractEpollChannel) channel).setFlag(Native.EPOLLET);
+                channel.setFlag(Native.EPOLLET);
                 break;
             case LEVEL_TRIGGERED:
                 checkChannelNotRegistered();
-                ((AbstractEpollChannel) channel).clearFlag(Native.EPOLLET);
+                channel.clearFlag(Native.EPOLLET);
                 break;
             default:
                 throw new Error();
@@ -177,7 +179,7 @@ public class EpollChannelConfig extends DefaultChannelConfig {
 
     @Override
     protected final void autoReadCleared() {
-        ((AbstractEpollChannel) channel).clearEpollIn();
+        channel.clearEpollIn();
     }
 
     final void setMaxBytesPerGatheringWrite(long maxBytesPerGatheringWrite) {

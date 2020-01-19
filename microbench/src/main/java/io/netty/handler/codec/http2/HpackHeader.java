@@ -40,14 +40,14 @@ import java.util.Random;
 /**
  * Helper class representing a single header entry. Used by the benchmarks.
  */
-final class HpackHeader {
+class HpackHeader {
     private static final String ALPHABET =
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
     final CharSequence name;
     final CharSequence value;
 
-    private HpackHeader(byte[] name, byte[] value) {
+    HpackHeader(byte[] name, byte[] value) {
         this.name = new AsciiString(name, false);
         this.value = new AsciiString(value, false);
     }
@@ -59,8 +59,7 @@ final class HpackHeader {
                                            boolean limitToAscii) {
         List<HpackHeader> hpackHeaders = new ArrayList<HpackHeader>(numHeaders);
         for (int i = 0; i < numHeaders; ++i) {
-            // Force always ascii for header names
-            byte[] name = randomBytes(new byte[nameLength], true);
+            byte[] name = randomBytes(new byte[nameLength], limitToAscii);
             byte[] value = randomBytes(new byte[valueLength], limitToAscii);
             hpackHeaders.add(new HpackHeader(name, value));
         }

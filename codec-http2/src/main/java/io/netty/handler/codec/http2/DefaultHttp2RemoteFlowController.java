@@ -31,7 +31,6 @@ import static io.netty.handler.codec.http2.Http2Error.STREAM_CLOSED;
 import static io.netty.handler.codec.http2.Http2Exception.streamError;
 import static io.netty.handler.codec.http2.Http2Stream.State.HALF_CLOSED_LOCAL;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 
@@ -636,7 +635,9 @@ public class DefaultHttp2RemoteFlowController implements Http2RemoteFlowControll
         }
 
         void initialWindowSize(int newWindowSize) throws Http2Exception {
-            checkPositiveOrZero(newWindowSize, "newWindowSize");
+            if (newWindowSize < 0) {
+                throw new IllegalArgumentException("Invalid initial window size: " + newWindowSize);
+            }
 
             final int delta = newWindowSize - initialWindowSize;
             initialWindowSize = newWindowSize;

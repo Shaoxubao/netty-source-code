@@ -61,56 +61,56 @@ public class HpackHuffmanTest {
         for (int i = 0; i < 4; i++) {
             buf[i] = (byte) 0xFF;
         }
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeIllegalPadding() throws Http2Exception {
         byte[] buf = new byte[1];
         buf[0] = 0x00; // '0', invalid padding
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding() throws Http2Exception {
         byte[] buf = makeBuf(0x0f, 0xFF); // '1', 'EOS'
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding1byte() throws Http2Exception {
         byte[] buf = makeBuf(0xFF);
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding2byte() throws Http2Exception {
         byte[] buf = makeBuf(0x1F, 0xFF); // 'a'
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding3byte() throws Http2Exception {
         byte[] buf = makeBuf(0x1F, 0xFF, 0xFF); // 'a'
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding4byte() throws Http2Exception {
         byte[] buf = makeBuf(0x1F, 0xFF, 0xFF, 0xFF); // 'a'
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodeExtraPadding29bit() throws Http2Exception {
         byte[] buf = makeBuf(0xFF, 0x9F, 0xFF, 0xFF, 0xFF);  // '|'
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     @Test(expected = Http2Exception.class)
     public void testDecodePartialSymbol() throws Http2Exception {
         byte[] buf = makeBuf(0x52, 0xBC, 0x30, 0xFF, 0xFF, 0xFF, 0xFF); // " pFA\x00", 31 bits of padding, a.k.a. EOS
-        decode(buf);
+        decode(newHuffmanDecoder(), buf);
     }
 
     private static byte[] makeBuf(int ... bytes) {
@@ -122,19 +122,19 @@ public class HpackHuffmanTest {
     }
 
     private static void roundTrip(String s) throws Http2Exception {
-        roundTrip(new HpackHuffmanEncoder(), s);
+        roundTrip(new HpackHuffmanEncoder(), newHuffmanDecoder(), s);
     }
 
-    private static void roundTrip(HpackHuffmanEncoder encoder, String s)
+    private static void roundTrip(HpackHuffmanEncoder encoder, HpackHuffmanDecoder decoder, String s)
             throws Http2Exception {
-        roundTrip(encoder, s.getBytes());
+        roundTrip(encoder, decoder, s.getBytes());
     }
 
     private static void roundTrip(byte[] buf) throws Http2Exception {
-        roundTrip(new HpackHuffmanEncoder(), buf);
+        roundTrip(new HpackHuffmanEncoder(), newHuffmanDecoder(), buf);
     }
 
-    private static void roundTrip(HpackHuffmanEncoder encoder, byte[] buf)
+    private static void roundTrip(HpackHuffmanEncoder encoder, HpackHuffmanDecoder decoder, byte[] buf)
             throws Http2Exception {
         ByteBuf buffer = Unpooled.buffer();
         try {
@@ -142,7 +142,7 @@ public class HpackHuffmanTest {
             byte[] bytes = new byte[buffer.readableBytes()];
             buffer.readBytes(bytes);
 
-            byte[] actualBytes = decode(bytes);
+            byte[] actualBytes = decode(decoder, bytes);
 
             Assert.assertTrue(Arrays.equals(buf, actualBytes));
         } finally {
@@ -150,14 +150,18 @@ public class HpackHuffmanTest {
         }
     }
 
-    private static byte[] decode(byte[] bytes) throws Http2Exception {
+    private static byte[] decode(HpackHuffmanDecoder decoder, byte[] bytes) throws Http2Exception {
         ByteBuf buffer = Unpooled.wrappedBuffer(bytes);
         try {
-            AsciiString decoded = new HpackHuffmanDecoder().decode(buffer, buffer.readableBytes());
+            AsciiString decoded = decoder.decode(buffer, buffer.readableBytes());
             Assert.assertFalse(buffer.isReadable());
             return decoded.toByteArray();
         } finally {
             buffer.release();
         }
+    }
+
+    private static HpackHuffmanDecoder newHuffmanDecoder() {
+        return new HpackHuffmanDecoder(32);
     }
 }

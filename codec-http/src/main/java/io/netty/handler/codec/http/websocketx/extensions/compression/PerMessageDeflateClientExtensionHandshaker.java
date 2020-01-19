@@ -15,20 +15,19 @@
  */
 package io.netty.handler.codec.http.websocketx.extensions.compression;
 
+import static io.netty.handler.codec.http.websocketx.extensions.compression.
+        PerMessageDeflateServerExtensionHandshaker.*;
+
 import io.netty.handler.codec.compression.ZlibCodecFactory;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketClientExtension;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketClientExtensionHandshaker;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketExtensionData;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketExtensionDecoder;
 import io.netty.handler.codec.http.websocketx.extensions.WebSocketExtensionEncoder;
-import io.netty.handler.codec.http.websocketx.extensions.WebSocketExtensionFilterProvider;
 
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map.Entry;
-
-import static io.netty.handler.codec.http.websocketx.extensions.compression.PerMessageDeflateServerExtensionHandshaker.*;
-import static io.netty.util.internal.ObjectUtil.*;
 
 /**
  * <a href="http://tools.ietf.org/html/draft-ietf-hybi-permessage-compression-18">permessage-deflate</a>
@@ -41,7 +40,6 @@ public final class PerMessageDeflateClientExtensionHandshaker implements WebSock
     private final int requestedServerWindowSize;
     private final boolean allowClientNoContext;
     private final boolean requestedServerNoContext;
-    private final WebSocketExtensionFilterProvider extensionFilterProvider;
 
     /**
      * Constructor with default configuration.
@@ -70,34 +68,6 @@ public final class PerMessageDeflateClientExtensionHandshaker implements WebSock
     public PerMessageDeflateClientExtensionHandshaker(int compressionLevel,
             boolean allowClientWindowSize, int requestedServerWindowSize,
             boolean allowClientNoContext, boolean requestedServerNoContext) {
-        this(compressionLevel, allowClientWindowSize, requestedServerWindowSize,
-             allowClientNoContext, requestedServerNoContext, WebSocketExtensionFilterProvider.DEFAULT);
-    }
-
-    /**
-     * Constructor with custom configuration.
-     *
-     * @param compressionLevel
-     *            Compression level between 0 and 9 (default is 6).
-     * @param allowClientWindowSize
-     *            allows WebSocket server to customize the client inflater window size
-     *            (default is false).
-     * @param requestedServerWindowSize
-     *            indicates the requested sever window size to use if server inflater is customizable.
-     * @param allowClientNoContext
-     *            allows WebSocket server to activate client_no_context_takeover
-     *            (default is false).
-     * @param requestedServerNoContext
-     *            indicates if client needs to activate server_no_context_takeover
-     *            if server is compatible with (default is false).
-     * @param extensionFilterProvider
-     *            provides client extension filters for per message deflate encoder and decoder.
-     */
-    public PerMessageDeflateClientExtensionHandshaker(int compressionLevel,
-            boolean allowClientWindowSize, int requestedServerWindowSize,
-            boolean allowClientNoContext, boolean requestedServerNoContext,
-            WebSocketExtensionFilterProvider extensionFilterProvider) {
-
         if (requestedServerWindowSize > MAX_WINDOW_SIZE || requestedServerWindowSize < MIN_WINDOW_SIZE) {
             throw new IllegalArgumentException(
                     "requestedServerWindowSize: " + requestedServerWindowSize + " (expected: 8-15)");
@@ -111,7 +81,6 @@ public final class PerMessageDeflateClientExtensionHandshaker implements WebSock
         this.requestedServerWindowSize = requestedServerWindowSize;
         this.allowClientNoContext = allowClientNoContext;
         this.requestedServerNoContext = requestedServerNoContext;
-        this.extensionFilterProvider = checkNotNull(extensionFilterProvider, "extensionFilterProvider");
     }
 
     @Override
@@ -189,7 +158,7 @@ public final class PerMessageDeflateClientExtensionHandshaker implements WebSock
 
         if (succeed) {
             return new PermessageDeflateExtension(serverNoContext, serverWindowSize,
-                    clientNoContext, clientWindowSize, extensionFilterProvider);
+                    clientNoContext, clientWindowSize);
         } else {
             return null;
         }
@@ -201,32 +170,28 @@ public final class PerMessageDeflateClientExtensionHandshaker implements WebSock
         private final int serverWindowSize;
         private final boolean clientNoContext;
         private final int clientWindowSize;
-        private final WebSocketExtensionFilterProvider extensionFilterProvider;
 
         @Override
         public int rsv() {
             return RSV1;
         }
 
-        PermessageDeflateExtension(boolean serverNoContext, int serverWindowSize,
-                boolean clientNoContext, int clientWindowSize,
-                WebSocketExtensionFilterProvider extensionFilterProvider) {
+        public PermessageDeflateExtension(boolean serverNoContext, int serverWindowSize,
+                boolean clientNoContext, int clientWindowSize) {
             this.serverNoContext = serverNoContext;
             this.serverWindowSize = serverWindowSize;
             this.clientNoContext = clientNoContext;
             this.clientWindowSize = clientWindowSize;
-            this.extensionFilterProvider = extensionFilterProvider;
         }
 
         @Override
         public WebSocketExtensionEncoder newExtensionEncoder() {
-            return new PerMessageDeflateEncoder(compressionLevel, clientWindowSize, clientNoContext,
-                                                extensionFilterProvider.encoderFilter());
+            return new PerMessageDeflateEncoder(compressionLevel, serverWindowSize, serverNoContext);
         }
 
         @Override
         public WebSocketExtensionDecoder newExtensionDecoder() {
-            return new PerMessageDeflateDecoder(serverNoContext, extensionFilterProvider.decoderFilter());
+            return new PerMessageDeflateDecoder(clientNoContext);
         }
     }
 

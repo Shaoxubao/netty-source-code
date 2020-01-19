@@ -22,8 +22,6 @@ import io.netty.util.concurrent.Promise;
 /**
  * Special {@link ChannelFuture} which is writable.
  */
-
-// 综合了 ChannelFuture 和 Promise 中的方法，只不过通过覆写将返回值都变为 ChannelPromise 了而已，没有增加什么新的功能。
 public interface ChannelPromise extends ChannelFuture, Promise<Void> {
 
     @Override

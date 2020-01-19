@@ -22,8 +22,8 @@ import com.sun.nio.sctp.Notification;
 import com.sun.nio.sctp.PeerAddressChangeNotification;
 import com.sun.nio.sctp.SendFailedNotification;
 import com.sun.nio.sctp.ShutdownNotification;
+
 import io.netty.channel.ChannelPipeline;
-import io.netty.util.internal.ObjectUtil;
 
 
 /**
@@ -35,7 +35,10 @@ public final class SctpNotificationHandler extends AbstractNotificationHandler<O
     private final SctpChannel sctpChannel;
 
     public SctpNotificationHandler(SctpChannel sctpChannel) {
-        this.sctpChannel = ObjectUtil.checkNotNull(sctpChannel, "sctpChannel");
+        if (sctpChannel == null) {
+            throw new NullPointerException("sctpChannel");
+        }
+        this.sctpChannel = sctpChannel;
     }
 
     @Override

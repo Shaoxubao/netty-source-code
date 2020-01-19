@@ -16,7 +16,6 @@
 package io.netty.handler.codec.socks;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.Collections;
 import java.util.List;
@@ -32,7 +31,10 @@ public final class SocksInitRequest extends SocksRequest {
 
     public SocksInitRequest(List<SocksAuthScheme> authSchemes) {
         super(SocksRequestType.INIT);
-        this.authSchemes = ObjectUtil.checkNotNull(authSchemes, "authSchemes");
+        if (authSchemes == null) {
+            throw new NullPointerException("authSchemes");
+        }
+        this.authSchemes = authSchemes;
     }
 
     /**

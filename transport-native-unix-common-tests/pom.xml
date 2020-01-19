@@ -19,7 +19,7 @@
   <parent>
     <groupId>io.netty</groupId>
     <artifactId>netty-parent</artifactId>
-    <version>4.1.45.Final-SNAPSHOT</version>
+    <version>4.1.30.Final</version>
   </parent>
   <artifactId>netty-transport-native-unix-common-tests</artifactId>
 
@@ -30,11 +30,6 @@
   </description>
 
   <dependencies>
-    <dependency>
-      <groupId>io.netty</groupId>
-      <artifactId>netty-transport</artifactId>
-      <version>${project.version}</version>
-    </dependency>
     <dependency>
       <groupId>io.netty</groupId>
       <artifactId>netty-transport-native-unix-common</artifactId>

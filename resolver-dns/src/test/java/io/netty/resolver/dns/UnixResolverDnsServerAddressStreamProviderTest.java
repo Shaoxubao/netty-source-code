@@ -140,41 +140,12 @@ public class UnixResolverDnsServerAddressStreamProviderTest {
     }
 
     @Test
-    public void searchDomainsWithMultipleSearchSeperatedByWhitespace() throws IOException {
-        File f = buildFile("search linecorp.local squarecorp.local\n" +
-                           "nameserver 127.0.0.2\n");
-        List<String> domains = UnixResolverDnsServerAddressStreamProvider.parseEtcResolverSearchDomains(f);
-        assertEquals(Arrays.asList("linecorp.local", "squarecorp.local"), domains);
-    }
-
-    @Test
-    public void searchDomainsWithMultipleSearchSeperatedByTab() throws IOException {
-        File f = buildFile("search linecorp.local\tsquarecorp.local\n" +
-                "nameserver 127.0.0.2\n");
-        List<String> domains = UnixResolverDnsServerAddressStreamProvider.parseEtcResolverSearchDomains(f);
-        assertEquals(Arrays.asList("linecorp.local", "squarecorp.local"), domains);
-    }
-
-    @Test
     public void searchDomainsPrecedence() throws IOException {
         File f = buildFile("domain linecorp.local\n" +
                            "search squarecorp.local\n" +
                            "nameserver 127.0.0.2\n");
         List<String> domains = UnixResolverDnsServerAddressStreamProvider.parseEtcResolverSearchDomains(f);
         assertEquals(Collections.singletonList("squarecorp.local"), domains);
-    }
-
-    @Test
-    public void ignoreInvalidEntries() throws Exception {
-        File f = buildFile("domain netty.local\n" +
-                "nameserver nil\n" +
-                "nameserver 127.0.0.3\n");
-        UnixResolverDnsServerAddressStreamProvider p =
-                new UnixResolverDnsServerAddressStreamProvider(f, null);
-
-        DnsServerAddressStream stream = p.nameServerAddressStream("somehost");
-        assertEquals(1, stream.size());
-        assertHostNameEquals("127.0.0.3", stream.next());
     }
 
     private File buildFile(String contents) throws IOException {
@@ -186,17 +157,6 @@ public class UnixResolverDnsServerAddressStreamProviderTest {
             out.close();
         }
         return f;
-    }
-
-    @Test
-    public void ignoreComments() throws Exception {
-        File f = buildFile("domain linecorp.local\n" +
-                "nameserver 127.0.0.2 #somecomment\n");
-        UnixResolverDnsServerAddressStreamProvider p =
-                new UnixResolverDnsServerAddressStreamProvider(f, null);
-
-        DnsServerAddressStream stream = p.nameServerAddressStream("somehost");
-        assertHostNameEquals("127.0.0.2", stream.next());
     }
 
     private static void assertHostNameEquals(String expectedHostname, InetSocketAddress next) {

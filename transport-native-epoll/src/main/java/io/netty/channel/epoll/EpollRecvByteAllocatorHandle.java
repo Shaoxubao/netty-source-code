@@ -17,14 +17,16 @@ package io.netty.channel.epoll;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.channel.RecvByteBufAllocator.DelegatingHandle;
-import io.netty.channel.RecvByteBufAllocator.ExtendedHandle;
+import io.netty.channel.ChannelConfig;
+import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.unix.PreferredDirectByteBufAllocator;
 import io.netty.util.UncheckedBooleanSupplier;
+import io.netty.util.internal.ObjectUtil;
 
-class EpollRecvByteAllocatorHandle extends DelegatingHandle implements ExtendedHandle {
+class EpollRecvByteAllocatorHandle implements RecvByteBufAllocator.ExtendedHandle {
     private final PreferredDirectByteBufAllocator preferredDirectByteBufAllocator =
             new PreferredDirectByteBufAllocator();
+    private final RecvByteBufAllocator.ExtendedHandle delegate;
     private final UncheckedBooleanSupplier defaultMaybeMoreDataSupplier = new UncheckedBooleanSupplier() {
         @Override
         public boolean get() {
@@ -34,8 +36,8 @@ class EpollRecvByteAllocatorHandle extends DelegatingHandle implements ExtendedH
     private boolean isEdgeTriggered;
     private boolean receivedRdHup;
 
-    EpollRecvByteAllocatorHandle(ExtendedHandle handle) {
-        super(handle);
+    EpollRecvByteAllocatorHandle(RecvByteBufAllocator.ExtendedHandle handle) {
+        delegate = ObjectUtil.checkNotNull(handle, "handle");
     }
 
     final void receivedRdHup() {
@@ -72,17 +74,57 @@ class EpollRecvByteAllocatorHandle extends DelegatingHandle implements ExtendedH
     public final ByteBuf allocate(ByteBufAllocator alloc) {
         // We need to ensure we always allocate a direct ByteBuf as we can only use a direct buffer to read via JNI.
         preferredDirectByteBufAllocator.updateAllocator(alloc);
-        return delegate().allocate(preferredDirectByteBufAllocator);
+        return delegate.allocate(preferredDirectByteBufAllocator);
+    }
+
+    @Override
+    public final int guess() {
+        return delegate.guess();
+    }
+
+    @Override
+    public final void reset(ChannelConfig config) {
+        delegate.reset(config);
+    }
+
+    @Override
+    public final void incMessagesRead(int numMessages) {
+        delegate.incMessagesRead(numMessages);
+    }
+
+    @Override
+    public final void lastBytesRead(int bytes) {
+        delegate.lastBytesRead(bytes);
+    }
+
+    @Override
+    public final int lastBytesRead() {
+        return delegate.lastBytesRead();
+    }
+
+    @Override
+    public final int attemptedBytesRead() {
+        return delegate.attemptedBytesRead();
+    }
+
+    @Override
+    public final void attemptedBytesRead(int bytes) {
+        delegate.attemptedBytesRead(bytes);
+    }
+
+    @Override
+    public final void readComplete() {
+        delegate.readComplete();
     }
 
     @Override
     public final boolean continueReading(UncheckedBooleanSupplier maybeMoreDataSupplier) {
-        return ((ExtendedHandle) delegate()).continueReading(maybeMoreDataSupplier);
+        return delegate.continueReading(maybeMoreDataSupplier);
     }
 
     @Override
     public final boolean continueReading() {
         // We must override the supplier which determines if there maybe more data to read.
-        return continueReading(defaultMaybeMoreDataSupplier);
+        return delegate.continueReading(defaultMaybeMoreDataSupplier);
     }
 }

@@ -16,7 +16,6 @@
 
 package io.netty.handler.proxy;
 
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.StringUtil;
 
 import java.net.SocketAddress;
@@ -34,10 +33,23 @@ public final class ProxyConnectionEvent {
      */
     public ProxyConnectionEvent(
             String protocol, String authScheme, SocketAddress proxyAddress, SocketAddress destinationAddress) {
-        this.protocol = ObjectUtil.checkNotNull(protocol, "protocol");
-        this.authScheme = ObjectUtil.checkNotNull(authScheme, "authScheme");
-        this.proxyAddress = ObjectUtil.checkNotNull(proxyAddress, "proxyAddress");
-        this.destinationAddress = ObjectUtil.checkNotNull(destinationAddress, "destinationAddress");
+        if (protocol == null) {
+            throw new NullPointerException("protocol");
+        }
+        if (authScheme == null) {
+            throw new NullPointerException("authScheme");
+        }
+        if (proxyAddress == null) {
+            throw new NullPointerException("proxyAddress");
+        }
+        if (destinationAddress == null) {
+            throw new NullPointerException("destinationAddress");
+        }
+
+        this.protocol = protocol;
+        this.authScheme = authScheme;
+        this.proxyAddress = proxyAddress;
+        this.destinationAddress = destinationAddress;
     }
 
     /**

@@ -15,21 +15,20 @@
  */
 package io.netty.util.internal;
 
+import io.netty.util.Recycler;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.Promise;
-import io.netty.util.internal.ObjectPool.Handle;
-import io.netty.util.internal.ObjectPool.ObjectCreator;
 
 /**
  * Some pending write which should be picked up later.
  */
 public final class PendingWrite {
-    private static final ObjectPool<PendingWrite> RECYCLER = ObjectPool.newPool(new ObjectCreator<PendingWrite>() {
+    private static final Recycler<PendingWrite> RECYCLER = new Recycler<PendingWrite>() {
         @Override
-        public PendingWrite newObject(Handle<PendingWrite> handle) {
+        protected PendingWrite newObject(Handle<PendingWrite> handle) {
             return new PendingWrite(handle);
         }
-    });
+    };
 
     /**
      * Create a new empty {@link RecyclableArrayList} instance
@@ -41,11 +40,11 @@ public final class PendingWrite {
         return pending;
     }
 
-    private final Handle<PendingWrite> handle;
+    private final Recycler.Handle<PendingWrite> handle;
     private Object msg;
     private Promise<Void> promise;
 
-    private PendingWrite(Handle<PendingWrite> handle) {
+    private PendingWrite(Recycler.Handle<PendingWrite> handle) {
         this.handle = handle;
     }
 

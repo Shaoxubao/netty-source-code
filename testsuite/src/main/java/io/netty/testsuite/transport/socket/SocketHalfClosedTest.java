@@ -34,8 +34,6 @@ import io.netty.channel.socket.ChannelInputShutdownReadComplete;
 import io.netty.channel.socket.ChannelOutputShutdownEvent;
 import io.netty.channel.socket.DuplexChannel;
 import io.netty.util.UncheckedBooleanSupplier;
-import io.netty.util.internal.PlatformDependent;
-import org.junit.Assume;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -231,8 +229,6 @@ public class SocketHalfClosedTest extends AbstractSocketTest {
 
     @Test
     public void testAutoCloseFalseDoesShutdownOutput() throws Throwable {
-        // This test only works on Linux / BSD / MacOS as we assume some semantics that are not true for Windows.
-        Assume.assumeFalse(PlatformDependent.isWindows());
         run();
     }
 

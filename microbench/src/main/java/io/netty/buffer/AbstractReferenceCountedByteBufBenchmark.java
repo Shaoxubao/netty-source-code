@@ -49,7 +49,7 @@ public class AbstractReferenceCountedByteBufBenchmark extends AbstractMicrobench
     }
 
     @Benchmark
-    @BenchmarkMode(Mode.AverageTime)
+    @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.NANOSECONDS)
     public boolean retainReleaseUncontended() {
         buf.retain();
@@ -58,9 +58,9 @@ public class AbstractReferenceCountedByteBufBenchmark extends AbstractMicrobench
     }
 
     @Benchmark
-    @BenchmarkMode(Mode.AverageTime)
+    @BenchmarkMode(Mode.SampleTime)
     @OutputTimeUnit(TimeUnit.NANOSECONDS)
-    @GroupThreads(4)
+    @GroupThreads(6)
     public boolean retainReleaseContended() {
         buf.retain();
         Blackhole.consumeCPU(delay);

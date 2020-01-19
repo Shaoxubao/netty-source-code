@@ -16,7 +16,6 @@
 package io.netty.handler.codec.http;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.StringUtil;
 
 /**
@@ -30,7 +29,10 @@ public class DefaultHttpContent extends DefaultHttpObject implements HttpContent
      * Creates a new instance with the specified chunk content.
      */
     public DefaultHttpContent(ByteBuf content) {
-        this.content = ObjectUtil.checkNotNull(content, "content");
+        if (content == null) {
+            throw new NullPointerException("content");
+        }
+        this.content = content;
     }
 
     @Override

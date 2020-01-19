@@ -210,13 +210,12 @@ public abstract class AbstractKQueueStreamChannel extends AbstractKQueueChannel 
      */
     private int writeDefaultFileRegion(ChannelOutboundBuffer in, DefaultFileRegion region) throws Exception {
         final long regionCount = region.count();
-        final long offset = region.transferred();
-
-        if (offset >= regionCount) {
+        if (region.transferred() >= regionCount) {
             in.remove();
             return 0;
         }
 
+        final long offset = region.transferred();
         final long flushedAmount = socket.sendFile(region, region.position(), offset, regionCount - offset);
         if (flushedAmount > 0) {
             in.progress(flushedAmount);
@@ -224,8 +223,6 @@ public abstract class AbstractKQueueStreamChannel extends AbstractKQueueChannel 
                 in.remove();
             }
             return 1;
-        } else if (flushedAmount == 0) {
-            validateFileRegion(region, offset);
         }
         return WRITE_STATUS_SNDBUF_FULL;
     }

@@ -271,7 +271,6 @@ public final class ThreadLocalRandom extends Random {
      *
      * @throws UnsupportedOperationException always
      */
-    @Override
     public void setSeed(long seed) {
         if (initialized) {
             throw new UnsupportedOperationException();
@@ -279,7 +278,6 @@ public final class ThreadLocalRandom extends Random {
         rnd = (seed ^ multiplier) & mask;
     }
 
-    @Override
     protected int next(int bits) {
         rnd = (rnd * multiplier + addend) & mask;
         return (int) (rnd >>> (48 - bits));

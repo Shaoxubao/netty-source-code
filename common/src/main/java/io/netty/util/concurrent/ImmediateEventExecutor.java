@@ -15,7 +15,6 @@
  */
 package io.netty.util.concurrent;
 
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -103,7 +102,9 @@ public final class ImmediateEventExecutor extends AbstractEventExecutor {
 
     @Override
     public void execute(Runnable command) {
-        ObjectUtil.checkNotNull(command, "command");
+        if (command == null) {
+            throw new NullPointerException("command");
+        }
         if (!RUNNING.get()) {
             RUNNING.set(true);
             try {

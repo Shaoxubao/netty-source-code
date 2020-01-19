@@ -30,14 +30,15 @@ import java.util.Map;
 import static io.netty.channel.ChannelOption.SO_BACKLOG;
 import static io.netty.channel.ChannelOption.SO_RCVBUF;
 import static io.netty.channel.ChannelOption.SO_REUSEADDR;
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 public class EpollServerChannelConfig extends EpollChannelConfig implements ServerSocketChannelConfig {
+    protected final AbstractEpollChannel channel;
     private volatile int backlog = NetUtil.SOMAXCONN;
     private volatile int pendingFastOpenRequestsThreshold;
 
     EpollServerChannelConfig(AbstractEpollChannel channel) {
         super(channel);
+        this.channel = channel;
     }
 
     @Override
@@ -82,52 +83,48 @@ public class EpollServerChannelConfig extends EpollChannelConfig implements Serv
         return true;
     }
 
-    @Override
     public boolean isReuseAddress() {
         try {
-            return ((AbstractEpollChannel) channel).socket.isReuseAddress();
+            return channel.socket.isReuseAddress();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public EpollServerChannelConfig setReuseAddress(boolean reuseAddress) {
         try {
-            ((AbstractEpollChannel) channel).socket.setReuseAddress(reuseAddress);
+            channel.socket.setReuseAddress(reuseAddress);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public int getReceiveBufferSize() {
         try {
-            return ((AbstractEpollChannel) channel).socket.getReceiveBufferSize();
+            return channel.socket.getReceiveBufferSize();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public EpollServerChannelConfig setReceiveBufferSize(int receiveBufferSize) {
         try {
-            ((AbstractEpollChannel) channel).socket.setReceiveBufferSize(receiveBufferSize);
+            channel.socket.setReceiveBufferSize(receiveBufferSize);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public int getBacklog() {
         return backlog;
     }
 
-    @Override
     public EpollServerChannelConfig setBacklog(int backlog) {
-        checkPositiveOrZero(backlog, "backlog");
+        if (backlog < 0) {
+            throw new IllegalArgumentException("backlog: " + backlog);
+        }
         this.backlog = backlog;
         return this;
     }
@@ -151,7 +148,9 @@ public class EpollServerChannelConfig extends EpollChannelConfig implements Serv
      * @see <a href="https://tools.ietf.org/html/rfc7413">RFC 7413 TCP FastOpen</a>
      */
     public EpollServerChannelConfig setTcpFastopen(int pendingFastOpenRequestsThreshold) {
-        checkPositiveOrZero(this.pendingFastOpenRequestsThreshold, "pendingFastOpenRequestsThreshold");
+        if (this.pendingFastOpenRequestsThreshold < 0) {
+            throw new IllegalArgumentException("pendingFastOpenRequestsThreshold: " + pendingFastOpenRequestsThreshold);
+        }
         this.pendingFastOpenRequestsThreshold = pendingFastOpenRequestsThreshold;
         return this;
     }

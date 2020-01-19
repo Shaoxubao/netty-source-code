@@ -156,9 +156,6 @@ public class HttpMethod implements Comparable<HttpMethod> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
         if (!(o instanceof HttpMethod)) {
             return false;
         }
@@ -174,9 +171,6 @@ public class HttpMethod implements Comparable<HttpMethod> {
 
     @Override
     public int compareTo(HttpMethod o) {
-        if (o == this) {
-            return 0;
-        }
         return name().compareTo(o.name());
     }
 

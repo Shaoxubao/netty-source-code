@@ -64,21 +64,6 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
     }
 
     @Test
-    public void testTrim() {
-        PooledByteBufAllocator allocator = newAllocator(true);
-
-        // Should return false as we never allocated from this thread yet.
-        assertFalse(allocator.trimCurrentThreadCache());
-
-        ByteBuf directBuffer = allocator.directBuffer();
-
-        assertTrue(directBuffer.release());
-
-        // Should return true now a cache exists for the calling thread.
-        assertTrue(allocator.trimCurrentThreadCache());
-    }
-
-    @Test
     public void testPooledUnsafeHeapBufferAndUnsafeDirectBuffer() {
         PooledByteBufAllocator allocator = newAllocator(true);
         ByteBuf directBuffer = allocator.directBuffer();
@@ -90,25 +75,6 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
         assertInstanceOf(heapBuffer,
                 PlatformDependent.hasUnsafe() ? PooledUnsafeHeapByteBuf.class : PooledHeapByteBuf.class);
         heapBuffer.release();
-    }
-
-    @Test
-    public void testIOBuffersAreDirectWhenUnsafeAvailableOrDirectBuffersPooled() {
-        PooledByteBufAllocator allocator = newAllocator(true);
-        ByteBuf ioBuffer = allocator.ioBuffer();
-
-        assertTrue(ioBuffer.isDirect());
-        ioBuffer.release();
-
-        PooledByteBufAllocator unpooledAllocator = newUnpooledAllocator();
-        ioBuffer = unpooledAllocator.ioBuffer();
-
-        if (PlatformDependent.hasUnsafe()) {
-            assertTrue(ioBuffer.isDirect());
-        } else {
-            assertFalse(ioBuffer.isDirect());
-        }
-        ioBuffer.release();
     }
 
     @Test
@@ -464,14 +430,8 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
                 Thread.sleep(100);
             }
         } finally {
-            // First mark all AllocationThreads to complete their work and then wait until these are complete
-            // and rethrow if there was any error.
             for (AllocationThread t : threads) {
-                t.markAsFinished();
-            }
-
-            for (AllocationThread t: threads) {
-                t.joinAndCheckForError();
+                t.finish();
             }
         }
     }
@@ -501,7 +461,7 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
         private final ByteBufAllocator allocator;
         private final AtomicReference<Object> finish = new AtomicReference<Object>();
 
-        AllocationThread(ByteBufAllocator allocator) {
+        public AllocationThread(ByteBufAllocator allocator) {
             this.allocator = allocator;
         }
 
@@ -534,17 +494,14 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
             }
         }
 
-        boolean isFinished() {
+        public boolean isFinished() {
             return finish.get() != null;
         }
 
-        void markAsFinished() {
-            finish.compareAndSet(null, Boolean.TRUE);
-        }
-
-        void joinAndCheckForError() throws Throwable {
+        public void finish() throws Throwable {
             try {
                 // Mark as finish if not already done but ensure we not override the previous set error.
+                finish.compareAndSet(null, Boolean.TRUE);
                 join();
             } finally {
                 releaseBuffers();
@@ -552,7 +509,7 @@ public class PooledByteBufAllocatorTest extends AbstractByteBufAllocatorTest<Poo
             checkForError();
         }
 
-        void checkForError() throws Throwable {
+        public void checkForError() throws Throwable {
             Object obj = finish.get();
             if (obj instanceof Throwable) {
                 throw (Throwable) obj;

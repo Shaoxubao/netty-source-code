@@ -102,7 +102,7 @@ final class HpackTestCase {
 
             List<HpackHeaderField> expectedDynamicTable = headerBlock.getDynamicTable();
 
-            if (!headersEqual(expectedDynamicTable, actualDynamicTable)) {
+            if (!expectedDynamicTable.equals(actualDynamicTable)) {
                 throw new AssertionError(
                         "\nEXPECTED DYNAMIC TABLE:\n" + expectedDynamicTable +
                                 "\nACTUAL DYNAMIC TABLE:\n" + actualDynamicTable);
@@ -128,7 +128,7 @@ final class HpackTestCase {
                 expectedHeaders.add(new HpackHeaderField(h.name, h.value));
             }
 
-            if (!headersEqual(expectedHeaders, actualHeaders)) {
+            if (!expectedHeaders.equals(actualHeaders)) {
                 throw new AssertionError(
                         "\nEXPECTED:\n" + expectedHeaders +
                                 "\nACTUAL:\n" + actualHeaders);
@@ -141,7 +141,7 @@ final class HpackTestCase {
 
             List<HpackHeaderField> expectedDynamicTable = headerBlock.getDynamicTable();
 
-            if (!headersEqual(expectedDynamicTable, actualDynamicTable)) {
+            if (!expectedDynamicTable.equals(actualDynamicTable)) {
                 throw new AssertionError(
                         "\nEXPECTED DYNAMIC TABLE:\n" + expectedDynamicTable +
                                 "\nACTUAL DYNAMIC TABLE:\n" + actualDynamicTable);
@@ -174,7 +174,7 @@ final class HpackTestCase {
             maxHeaderTableSize = Integer.MAX_VALUE;
         }
 
-        return new HpackDecoder(DEFAULT_HEADER_LIST_SIZE, maxHeaderTableSize);
+        return new HpackDecoder(DEFAULT_HEADER_LIST_SIZE, 32, maxHeaderTableSize);
     }
 
     private static byte[] encode(HpackEncoder hpackEncoder, List<HpackHeaderField> headers, int maxHeaderTableSize,
@@ -227,18 +227,6 @@ final class HpackTestCase {
             ret.append(s);
         }
         return ret.toString();
-    }
-
-    private static boolean headersEqual(List<HpackHeaderField> expected, List<HpackHeaderField> actual) {
-        if (expected.size() != actual.size()) {
-            return false;
-        }
-        for (int i = 0; i < expected.size(); i++) {
-            if (!expected.get(i).equalsForTest(actual.get(i))) {
-                return false;
-            }
-        }
-        return true;
     }
 
     static class HeaderBlock {

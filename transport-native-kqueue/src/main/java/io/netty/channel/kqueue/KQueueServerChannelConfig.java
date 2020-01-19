@@ -31,14 +31,15 @@ import java.util.Map;
 import static io.netty.channel.ChannelOption.SO_BACKLOG;
 import static io.netty.channel.ChannelOption.SO_RCVBUF;
 import static io.netty.channel.ChannelOption.SO_REUSEADDR;
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 @UnstableApi
 public class KQueueServerChannelConfig extends KQueueChannelConfig implements ServerSocketChannelConfig {
+    protected final AbstractKQueueChannel channel;
     private volatile int backlog = NetUtil.SOMAXCONN;
 
     KQueueServerChannelConfig(AbstractKQueueChannel channel) {
         super(channel);
+        this.channel = channel;
     }
 
     @Override
@@ -78,52 +79,48 @@ public class KQueueServerChannelConfig extends KQueueChannelConfig implements Se
         return true;
     }
 
-    @Override
     public boolean isReuseAddress() {
         try {
-            return ((AbstractKQueueChannel) channel).socket.isReuseAddress();
+            return channel.socket.isReuseAddress();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public KQueueServerChannelConfig setReuseAddress(boolean reuseAddress) {
         try {
-            ((AbstractKQueueChannel) channel).socket.setReuseAddress(reuseAddress);
+            channel.socket.setReuseAddress(reuseAddress);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public int getReceiveBufferSize() {
         try {
-            return ((AbstractKQueueChannel) channel).socket.getReceiveBufferSize();
+            return channel.socket.getReceiveBufferSize();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public KQueueServerChannelConfig setReceiveBufferSize(int receiveBufferSize) {
         try {
-            ((AbstractKQueueChannel) channel).socket.setReceiveBufferSize(receiveBufferSize);
+            channel.socket.setReceiveBufferSize(receiveBufferSize);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
         }
     }
 
-    @Override
     public int getBacklog() {
         return backlog;
     }
 
-    @Override
     public KQueueServerChannelConfig setBacklog(int backlog) {
-        checkPositiveOrZero(backlog, "backlog");
+        if (backlog < 0) {
+            throw new IllegalArgumentException("backlog: " + backlog);
+        }
         this.backlog = backlog;
         return this;
     }

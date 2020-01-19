@@ -33,7 +33,6 @@ import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
 import io.netty.handler.ssl.util.SelfSignedCertificate;
 import io.netty.handler.ssl.util.SimpleTrustManagerFactory;
 import io.netty.util.ReferenceCountUtil;
-import io.netty.util.internal.ResourcesUtil;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.FutureListener;
 import io.netty.util.concurrent.Promise;
@@ -47,6 +46,7 @@ import javax.net.ssl.ManagerFactoryParameters;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509TrustManager;
+import java.io.File;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
 import java.security.cert.CertificateException;
@@ -302,8 +302,8 @@ public class ParameterizedSslHandlerTest {
 
         final SslContext sslClientCtx = SslContextBuilder.forClient()
                 .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                .keyManager(ResourcesUtil.getFile(getClass(),  "test.crt"),
-                        ResourcesUtil.getFile(getClass(), "test_unencrypted.pem"))
+                .keyManager(new File(getClass().getResource("test.crt").getFile()),
+                        new File(getClass().getResource("test_unencrypted.pem").getFile()))
                 .sslProvider(clientProvider).build();
 
         NioEventLoopGroup group = new NioEventLoopGroup();
@@ -381,21 +381,12 @@ public class ParameterizedSslHandlerTest {
         SelfSignedCertificate ssc = new SelfSignedCertificate();
 
         final SslContext sslServerCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
-                                                         .sslProvider(serverProvider)
-                                                         // Use TLSv1.2 as we depend on the fact that the handshake
-                                                         // is done in an extra round trip in the test which
-                                                         // is not true in TLSv1.3
-                                                         .protocols(SslUtils.PROTOCOL_TLS_V1_2)
-                                                         .build();
+                .sslProvider(serverProvider)
+                .build();
 
         final SslContext sslClientCtx = SslContextBuilder.forClient()
-                                                         .trustManager(InsecureTrustManagerFactory.INSTANCE)
-                                                         .sslProvider(clientProvider)
-                                                         // Use TLSv1.2 as we depend on the fact that the handshake
-                                                         // is done in an extra round trip in the test which
-                                                         // is not true in TLSv1.3
-                                                         .protocols(SslUtils.PROTOCOL_TLS_V1_2)
-                                                         .build();
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
+                .sslProvider(clientProvider).build();
 
         EventLoopGroup group = new NioEventLoopGroup();
         Channel sc = null;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Netty Project
+ * Copyright 2012 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -60,24 +60,7 @@ public class WebSocketServerHandshaker00 extends WebSocketServerHandshaker {
      *            reduce denial of service attacks using long data frames.
      */
     public WebSocketServerHandshaker00(String webSocketURL, String subprotocols, int maxFramePayloadLength) {
-        this(webSocketURL, subprotocols, WebSocketDecoderConfig.newBuilder()
-            .maxFramePayloadLength(maxFramePayloadLength)
-            .build());
-    }
-
-    /**
-     * Constructor specifying the destination web socket location
-     *
-     * @param webSocketURL
-     *            URL for web socket communications. e.g "ws://myhost.com/mypath". Subsequent web socket frames will be
-     *            sent to this URL.
-     * @param subprotocols
-     *            CSV of supported protocols
-     * @param decoderConfig
-     *            Frames decoder configuration.
-     */
-    public WebSocketServerHandshaker00(String webSocketURL, String subprotocols, WebSocketDecoderConfig decoderConfig) {
-        super(WebSocketVersion.V00, webSocketURL, subprotocols, decoderConfig);
+        super(WebSocketVersion.V00, webSocketURL, subprotocols, maxFramePayloadLength);
     }
 
     /**
@@ -133,16 +116,9 @@ public class WebSocketServerHandshaker00 extends WebSocketServerHandshaker {
         boolean isHixie76 = req.headers().contains(HttpHeaderNames.SEC_WEBSOCKET_KEY1) &&
                             req.headers().contains(HttpHeaderNames.SEC_WEBSOCKET_KEY2);
 
-        String origin = req.headers().get(HttpHeaderNames.ORIGIN);
-        //throw before allocating FullHttpResponse
-        if (origin == null && !isHixie76) {
-            throw new WebSocketHandshakeException("Missing origin header, got only " + req.headers().names());
-        }
-
         // Create the WebSocket handshake response.
         FullHttpResponse res = new DefaultFullHttpResponse(HTTP_1_1, new HttpResponseStatus(101,
-                isHixie76 ? "WebSocket Protocol Handshake" : "Web Socket Protocol Handshake"),
-                req.content().alloc().buffer(0));
+                isHixie76 ? "WebSocket Protocol Handshake" : "Web Socket Protocol Handshake"));
         if (headers != null) {
             res.headers().add(headers);
         }
@@ -153,7 +129,7 @@ public class WebSocketServerHandshaker00 extends WebSocketServerHandshaker {
         // Fill in the headers and contents depending on handshake getMethod.
         if (isHixie76) {
             // New handshake getMethod with a challenge:
-            res.headers().add(HttpHeaderNames.SEC_WEBSOCKET_ORIGIN, origin);
+            res.headers().add(HttpHeaderNames.SEC_WEBSOCKET_ORIGIN, req.headers().get(HttpHeaderNames.ORIGIN));
             res.headers().add(HttpHeaderNames.SEC_WEBSOCKET_LOCATION, uri());
 
             String subprotocols = req.headers().get(HttpHeaderNames.SEC_WEBSOCKET_PROTOCOL);
@@ -176,14 +152,14 @@ public class WebSocketServerHandshaker00 extends WebSocketServerHandshaker {
             int b = (int) (Long.parseLong(BEGINNING_DIGIT.matcher(key2).replaceAll("")) /
                            BEGINNING_SPACE.matcher(key2).replaceAll("").length());
             long c = req.content().readLong();
-            ByteBuf input = Unpooled.wrappedBuffer(new byte[16]).setIndex(0, 0);
+            ByteBuf input = Unpooled.buffer(16);
             input.writeInt(a);
             input.writeInt(b);
             input.writeLong(c);
             res.content().writeBytes(WebSocketUtil.md5(input.array()));
         } else {
             // Old Hixie 75 handshake getMethod with no challenge:
-            res.headers().add(HttpHeaderNames.WEBSOCKET_ORIGIN, origin);
+            res.headers().add(HttpHeaderNames.WEBSOCKET_ORIGIN, req.headers().get(HttpHeaderNames.ORIGIN));
             res.headers().add(HttpHeaderNames.WEBSOCKET_LOCATION, uri());
 
             String protocol = req.headers().get(HttpHeaderNames.WEBSOCKET_PROTOCOL);
@@ -209,7 +185,7 @@ public class WebSocketServerHandshaker00 extends WebSocketServerHandshaker {
 
     @Override
     protected WebSocketFrameDecoder newWebsocketDecoder() {
-        return new WebSocket00FrameDecoder(decoderConfig());
+        return new WebSocket00FrameDecoder(maxFramePayloadLength());
     }
 
     @Override

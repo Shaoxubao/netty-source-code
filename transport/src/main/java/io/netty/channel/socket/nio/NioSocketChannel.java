@@ -33,7 +33,6 @@ import io.netty.channel.socket.SocketChannelConfig;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.SocketUtils;
-import io.netty.util.internal.SuppressJava6Requirement;
 import io.netty.util.internal.UnstableApi;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -66,7 +65,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
              *
              *  See <a href="https://github.com/netty/netty/issues/2308">#2308</a>.
              */
-            // 创建 SocketChannel 实例
             return provider.openSocketChannel();
         } catch (IOException e) {
             throw new ChannelException("Failed to open a socket.", e);
@@ -79,7 +77,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      * Create a new instance
      */
     public NioSocketChannel() {
-        // SelectorProvider 实例用于创建 JDK 的 SocketChannel 实例
         this(DEFAULT_SELECTOR_PROVIDER);
     }
 
@@ -87,7 +84,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      * Create a new instance using the given {@link SelectorProvider}.
      */
     public NioSocketChannel(SelectorProvider provider) {
-        // 看这里，newSocket(provider) 方法会创建 JDK 的 SocketChannel
         this(newSocket(provider));
     }
 
@@ -106,7 +102,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
      */
     public NioSocketChannel(Channel parent, SocketChannel socket) {
         super(parent, socket);
-        // 实例化了内部的 NioSocketChannelConfig 实例，它用于保存 channel 的配置信息
         config = new NioSocketChannelConfig(this, socket.socket());
     }
 
@@ -157,7 +152,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         return (InetSocketAddress) super.remoteAddress();
     }
 
-    @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     @UnstableApi
     @Override
     protected final void doShutdownOutput() throws Exception {
@@ -276,7 +270,6 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
         }
     }
 
-    @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     private void shutdownInput0() throws Exception {
         if (PlatformDependent.javaVersion() >= 7) {
             javaChannel().shutdownInput();
@@ -503,6 +496,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
             return super.getOption(option);
         }
 
+        @SuppressWarnings("unchecked")
         @Override
         public Map<ChannelOption<?>, Object> getOptions() {
             if (PlatformDependent.javaVersion() >= 7) {
@@ -523,7 +517,7 @@ public class NioSocketChannel extends AbstractNioByteChannel implements io.netty
             // Multiply by 2 to give some extra space in case the OS can process write data faster than we can provide.
             int newSendBufferSize = getSendBufferSize() << 1;
             if (newSendBufferSize > 0) {
-                setMaxBytesPerGatheringWrite(newSendBufferSize);
+                setMaxBytesPerGatheringWrite(getSendBufferSize() << 1);
             }
         }
 

@@ -54,7 +54,7 @@ import io.netty.util.CharsetUtil;
 
 /**
  * ATTENTION: This is an incomplete example! In order to provide a fully functional
- * end-to-end example we'd need an X.509 certificate and the matching PrivateKey.
+ * end-to-end example we'd need a X.509 certificate and the matching PrivateKey.
  */
 @SuppressWarnings("unused")
 public class OcspServerExample {
@@ -71,7 +71,7 @@ public class OcspServerExample {
         X509Certificate issuer = keyCertChain[keyCertChain.length - 1];
 
         // Step 2: We need the URL of the CA's OCSP responder server. It's somewhere encoded
-        // into the certificate! Notice that it's an HTTP URL.
+        // into the certificate! Notice that it's a HTTP URL.
         URI uri = OcspUtils.ocspUri(certificate);
         System.out.println("OCSP Responder URI: " + uri);
 

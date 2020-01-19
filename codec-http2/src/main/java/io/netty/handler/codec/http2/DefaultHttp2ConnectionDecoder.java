@@ -57,8 +57,6 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
     private final Http2FrameReader frameReader;
     private Http2FrameListener listener;
     private final Http2PromisedRequestVerifier requestVerifier;
-    private final Http2SettingsReceivedConsumer settingsReceivedConsumer;
-    private final boolean autoAckPing;
 
     public DefaultHttp2ConnectionDecoder(Http2Connection connection,
                                          Http2ConnectionEncoder encoder,
@@ -70,60 +68,6 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
                                          Http2ConnectionEncoder encoder,
                                          Http2FrameReader frameReader,
                                          Http2PromisedRequestVerifier requestVerifier) {
-        this(connection, encoder, frameReader, requestVerifier, true);
-    }
-
-    /**
-     * Create a new instance.
-     * @param connection The {@link Http2Connection} associated with this decoder.
-     * @param encoder The {@link Http2ConnectionEncoder} associated with this decoder.
-     * @param frameReader Responsible for reading/parsing the raw frames. As opposed to this object which applies
-     *                    h2 semantics on top of the frames.
-     * @param requestVerifier Determines if push promised streams are valid.
-     * @param autoAckSettings {@code false} to disable automatically applying and sending settings acknowledge frame.
-     *  The {@code Http2ConnectionEncoder} is expected to be an instance of {@link Http2SettingsReceivedConsumer} and
-     *  will apply the earliest received but not yet ACKed SETTINGS when writing the SETTINGS ACKs.
-     * {@code true} to enable automatically applying and sending settings acknowledge frame.
-     */
-    public DefaultHttp2ConnectionDecoder(Http2Connection connection,
-                                         Http2ConnectionEncoder encoder,
-                                         Http2FrameReader frameReader,
-                                         Http2PromisedRequestVerifier requestVerifier,
-                                         boolean autoAckSettings) {
-        this(connection, encoder, frameReader, requestVerifier, autoAckSettings, true);
-    }
-
-    /**
-     * Create a new instance.
-     * @param connection The {@link Http2Connection} associated with this decoder.
-     * @param encoder The {@link Http2ConnectionEncoder} associated with this decoder.
-     * @param frameReader Responsible for reading/parsing the raw frames. As opposed to this object which applies
-     *                    h2 semantics on top of the frames.
-     * @param requestVerifier Determines if push promised streams are valid.
-     * @param autoAckSettings {@code false} to disable automatically applying and sending settings acknowledge frame.
-     *                        The {@code Http2ConnectionEncoder} is expected to be an instance of
-     *                        {@link Http2SettingsReceivedConsumer} and will apply the earliest received but not yet
-     *                        ACKed SETTINGS when writing the SETTINGS ACKs. {@code true} to enable automatically
-     *                        applying and sending settings acknowledge frame.
-     * @param autoAckPing {@code false} to disable automatically sending ping acknowledge frame. {@code true} to enable
-     *                    automatically sending ping ack frame.
-     */
-    public DefaultHttp2ConnectionDecoder(Http2Connection connection,
-                                         Http2ConnectionEncoder encoder,
-                                         Http2FrameReader frameReader,
-                                         Http2PromisedRequestVerifier requestVerifier,
-                                         boolean autoAckSettings,
-                                         boolean autoAckPing) {
-        this.autoAckPing = autoAckPing;
-        if (autoAckSettings) {
-            settingsReceivedConsumer = null;
-        } else {
-            if (!(encoder instanceof Http2SettingsReceivedConsumer)) {
-                throw new IllegalArgumentException("disabling autoAckSettings requires the encoder to be a " +
-                        Http2SettingsReceivedConsumer.class);
-            }
-            settingsReceivedConsumer = (Http2SettingsReceivedConsumer) encoder;
-        }
         this.connection = checkNotNull(connection, "connection");
         this.frameReader = checkNotNull(frameReader, "frameReader");
         this.encoder = checkNotNull(encoder, "encoder");
@@ -464,27 +408,23 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
         }
 
         @Override
-        public void onSettingsRead(final ChannelHandlerContext ctx, Http2Settings settings) throws Http2Exception {
-            if (settingsReceivedConsumer == null) {
-                // Acknowledge receipt of the settings. We should do this before we process the settings to ensure our
-                // remote peer applies these settings before any subsequent frames that we may send which depend upon
-                // these new settings. See https://github.com/netty/netty/issues/6520.
-                encoder.writeSettingsAck(ctx, ctx.newPromise());
+        public void onSettingsRead(ChannelHandlerContext ctx, Http2Settings settings) throws Http2Exception {
+            // Acknowledge receipt of the settings. We should do this before we process the settings to ensure our
+            // remote peer applies these settings before any subsequent frames that we may send which depend upon these
+            // new settings. See https://github.com/netty/netty/issues/6520.
+            encoder.writeSettingsAck(ctx, ctx.newPromise());
 
-                encoder.remoteSettings(settings);
-            } else {
-                settingsReceivedConsumer.consumeReceivedSettings(settings);
-            }
+            encoder.remoteSettings(settings);
 
             listener.onSettingsRead(ctx, settings);
         }
 
         @Override
         public void onPingRead(ChannelHandlerContext ctx, long data) throws Http2Exception {
-            if (autoAckPing) {
-                // Send an ack back to the remote client.
-                encoder.writePing(ctx, true, data, ctx.newPromise());
-            }
+            // Send an ack back to the remote client.
+            // Need to retain the buffer here since it will be released after the write completes.
+            encoder.writePing(ctx, true, data, ctx.newPromise());
+
             listener.onPingRead(ctx, data);
         }
 
@@ -585,11 +525,6 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
                             ctx.channel(), frameName, streamId);
                     return true;
                 }
-
-                // Make sure it's not an out-of-order frame, like a rogue DATA frame, for a stream that could
-                // never have existed.
-                verifyStreamMayHaveExisted(streamId);
-
                 // Its possible that this frame would result in stream ID out of order creation (PROTOCOL ERROR) and its
                 // also possible that this frame is received on a CLOSED stream (STREAM_CLOSED after a RST_STREAM is
                 // sent). We don't have enough information to know for sure, so we choose the lesser of the two errors.
@@ -602,7 +537,7 @@ public class DefaultHttp2ConnectionDecoder implements Http2ConnectionDecoder {
                 // elsewhere so we don't close the stream or otherwise modify the stream's state.
 
                 if (logger.isInfoEnabled()) {
-                    logger.info("{} ignoring {} frame for stream {}", ctx.channel(), frameName,
+                    logger.info("{} ignoring {} frame for stream {} {}", ctx.channel(), frameName,
                             stream.isResetSent() ? "RST_STREAM sent." :
                                 ("Stream created after GOAWAY sent. Last known stream by peer " +
                                  connection.remote().lastStreamKnownByPeer()));

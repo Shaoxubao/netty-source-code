@@ -16,7 +16,6 @@
 package io.netty.handler.codec.socks;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.internal.ObjectUtil;
 
 /**
  * An socks auth response.
@@ -30,7 +29,10 @@ public final class SocksAuthResponse extends SocksResponse {
 
     public SocksAuthResponse(SocksAuthStatus authStatus) {
         super(SocksResponseType.AUTH);
-        this.authStatus = ObjectUtil.checkNotNull(authStatus, "authStatus");
+        if (authStatus == null) {
+            throw new NullPointerException("authStatus");
+        }
+        this.authStatus = authStatus;
     }
 
     /**

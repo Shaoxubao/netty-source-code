@@ -17,7 +17,6 @@ package io.netty.handler.codec.socksx.v5;
 
 import io.netty.handler.codec.DecoderResult;
 import io.netty.util.NetUtil;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.StringUtil;
 
 import java.net.IDN;
@@ -39,9 +38,12 @@ public final class DefaultSocks5CommandResponse extends AbstractSocks5Message im
     public DefaultSocks5CommandResponse(
             Socks5CommandStatus status, Socks5AddressType bndAddrType, String bndAddr, int bndPort) {
 
-        ObjectUtil.checkNotNull(status, "status");
-        ObjectUtil.checkNotNull(bndAddrType, "bndAddrType");
-
+        if (status == null) {
+            throw new NullPointerException("status");
+        }
+        if (bndAddrType == null) {
+            throw new NullPointerException("bndAddrType");
+        }
         if (bndAddr != null) {
             if (bndAddrType == Socks5AddressType.IPv4) {
                 if (!NetUtil.isValidIpV4Address(bndAddr)) {

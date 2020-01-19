@@ -16,13 +16,11 @@
 package io.netty.handler.ssl;
 
 import io.netty.buffer.ByteBufAllocator;
-import io.netty.internal.tcnative.CertificateCallback;
 import io.netty.internal.tcnative.SSL;
 import io.netty.internal.tcnative.SSLContext;
 import io.netty.internal.tcnative.SniHostNameMatcher;
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.PlatformDependent;
-import io.netty.util.internal.SuppressJava6Requirement;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -50,31 +48,34 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
             InternalLoggerFactory.getInstance(ReferenceCountedOpenSslServerContext.class);
     private static final byte[] ID = {'n', 'e', 't', 't', 'y'};
     private final OpenSslServerSessionContext sessionContext;
+    private final OpenSslKeyMaterialManager keyMaterialManager;
 
     ReferenceCountedOpenSslServerContext(
             X509Certificate[] trustCertCollection, TrustManagerFactory trustManagerFactory,
             X509Certificate[] keyCertChain, PrivateKey key, String keyPassword, KeyManagerFactory keyManagerFactory,
             Iterable<String> ciphers, CipherSuiteFilter cipherFilter, ApplicationProtocolConfig apn,
             long sessionCacheSize, long sessionTimeout, ClientAuth clientAuth, String[] protocols, boolean startTls,
-            boolean enableOcsp, String keyStore) throws SSLException {
+            boolean enableOcsp) throws SSLException {
         this(trustCertCollection, trustManagerFactory, keyCertChain, key, keyPassword, keyManagerFactory, ciphers,
                 cipherFilter, toNegotiator(apn), sessionCacheSize, sessionTimeout, clientAuth, protocols, startTls,
-                enableOcsp, keyStore);
+                enableOcsp);
     }
 
-    ReferenceCountedOpenSslServerContext(
+    private ReferenceCountedOpenSslServerContext(
             X509Certificate[] trustCertCollection, TrustManagerFactory trustManagerFactory,
             X509Certificate[] keyCertChain, PrivateKey key, String keyPassword, KeyManagerFactory keyManagerFactory,
             Iterable<String> ciphers, CipherSuiteFilter cipherFilter, OpenSslApplicationProtocolNegotiator apn,
             long sessionCacheSize, long sessionTimeout, ClientAuth clientAuth, String[] protocols, boolean startTls,
-            boolean enableOcsp, String keyStore) throws SSLException {
+            boolean enableOcsp) throws SSLException {
         super(ciphers, cipherFilter, apn, sessionCacheSize, sessionTimeout, SSL.SSL_MODE_SERVER, keyCertChain,
               clientAuth, protocols, startTls, enableOcsp, true);
         // Create a new SSL_CTX and configure it.
         boolean success = false;
         try {
-            sessionContext = newSessionContext(this, ctx, engineMap, trustCertCollection, trustManagerFactory,
-                                                      keyCertChain, key, keyPassword, keyManagerFactory, keyStore);
+            ServerContext context = newSessionContext(this, ctx, engineMap, trustCertCollection, trustManagerFactory,
+                                                      keyCertChain, key, keyPassword, keyManagerFactory);
+            sessionContext = context.sessionContext;
+            keyMaterialManager = context.keyMaterialManager;
             success = true;
         } finally {
             if (!success) {
@@ -88,14 +89,23 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
         return sessionContext;
     }
 
-    static OpenSslServerSessionContext newSessionContext(ReferenceCountedOpenSslContext thiz, long ctx,
-                                                         OpenSslEngineMap engineMap,
-                                                         X509Certificate[] trustCertCollection,
-                                                         TrustManagerFactory trustManagerFactory,
-                                                         X509Certificate[] keyCertChain, PrivateKey key,
-                                                         String keyPassword, KeyManagerFactory keyManagerFactory,
-                                                         String keyStore)
+    @Override
+    OpenSslKeyMaterialManager keyMaterialManager() {
+        return keyMaterialManager;
+    }
+
+    static final class ServerContext {
+        OpenSslServerSessionContext sessionContext;
+        OpenSslKeyMaterialManager keyMaterialManager;
+    }
+
+    static ServerContext newSessionContext(ReferenceCountedOpenSslContext thiz, long ctx, OpenSslEngineMap engineMap,
+                                           X509Certificate[] trustCertCollection,
+                                           TrustManagerFactory trustManagerFactory,
+                                           X509Certificate[] keyCertChain, PrivateKey key,
+                                           String keyPassword, KeyManagerFactory keyManagerFactory)
             throws SSLException {
+        ServerContext result = new ServerContext();
         OpenSslKeyMaterialProvider keyMaterialProvider = null;
         try {
             try {
@@ -113,7 +123,7 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
                     // keyManagerFactory for the server so build one if it is not specified.
                     if (keyManagerFactory == null) {
                         char[] keyPasswordChars = keyStorePassword(keyPassword);
-                        KeyStore ks = buildKeyStore(keyCertChain, key, keyPasswordChars, keyStore);
+                        KeyStore ks = buildKeyStore(keyCertChain, key, keyPasswordChars);
                         if (ks.aliases().hasMoreElements()) {
                             keyManagerFactory = new OpenSslX509KeyManagerFactory();
                         } else {
@@ -124,15 +134,14 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
                     }
                     keyMaterialProvider = providerFor(keyManagerFactory, keyPassword);
 
-                    SSLContext.setCertificateCallback(ctx, new OpenSslServerCertificateCallback(
-                            engineMap, new OpenSslKeyMaterialManager(keyMaterialProvider)));
+                    result.keyMaterialManager = new OpenSslKeyMaterialManager(keyMaterialProvider);
                 }
             } catch (Exception e) {
                 throw new SSLException("failed to set certificate and key", e);
             }
             try {
                 if (trustCertCollection != null) {
-                    trustManagerFactory = buildTrustManagerFactory(trustCertCollection, trustManagerFactory, keyStore);
+                    trustManagerFactory = buildTrustManagerFactory(trustCertCollection, trustManagerFactory);
                 } else if (trustManagerFactory == null) {
                     // Mimic the way SSLContext.getInstance(KeyManager[], null, null) works
                     trustManagerFactory = TrustManagerFactory.getInstance(
@@ -148,7 +157,13 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
                 //
                 //            See https://github.com/netty/netty/issues/5372
 
-                setVerifyCallback(ctx, engineMap, manager);
+                // Use this to prevent an error when running on java < 7
+                if (useExtendedTrustManager(manager)) {
+                    SSLContext.setCertVerifyCallback(ctx,
+                            new ExtendedTrustManagerVerifyCallback(engineMap, (X509ExtendedTrustManager) manager));
+                } else {
+                    SSLContext.setCertVerifyCallback(ctx, new TrustManagerVerifyCallback(engineMap, manager));
+                }
 
                 X509Certificate[] issuers = manager.getAcceptedIssuers();
                 if (issuers != null && issuers.length > 0) {
@@ -176,53 +191,15 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
                 throw new SSLException("unable to setup trustmanager", e);
             }
 
-            OpenSslServerSessionContext sessionContext = new OpenSslServerSessionContext(thiz, keyMaterialProvider);
-            sessionContext.setSessionIdContext(ID);
+            result.sessionContext = new OpenSslServerSessionContext(thiz, keyMaterialProvider);
+            result.sessionContext.setSessionIdContext(ID);
 
             keyMaterialProvider = null;
 
-            return sessionContext;
+            return result;
         } finally {
             if (keyMaterialProvider != null) {
                 keyMaterialProvider.destroy();
-            }
-        }
-    }
-
-    @SuppressJava6Requirement(reason = "Guarded by java version check")
-    private static void setVerifyCallback(long ctx, OpenSslEngineMap engineMap, X509TrustManager manager) {
-        // Use this to prevent an error when running on java < 7
-        if (useExtendedTrustManager(manager)) {
-            SSLContext.setCertVerifyCallback(ctx, new ExtendedTrustManagerVerifyCallback(
-                    engineMap, (X509ExtendedTrustManager) manager));
-        } else {
-            SSLContext.setCertVerifyCallback(ctx, new TrustManagerVerifyCallback(engineMap, manager));
-        }
-    }
-
-    private static final class OpenSslServerCertificateCallback implements CertificateCallback {
-        private final OpenSslEngineMap engineMap;
-        private final OpenSslKeyMaterialManager keyManagerHolder;
-
-        OpenSslServerCertificateCallback(OpenSslEngineMap engineMap, OpenSslKeyMaterialManager keyManagerHolder) {
-            this.engineMap = engineMap;
-            this.keyManagerHolder = keyManagerHolder;
-        }
-
-        @Override
-        public void handle(long ssl, byte[] keyTypeBytes, byte[][] asn1DerEncodedPrincipals) throws Exception {
-            final ReferenceCountedOpenSslEngine engine = engineMap.get(ssl);
-            if (engine == null) {
-                // Maybe null if destroyed in the meantime.
-                return;
-            }
-            try {
-                // For now we just ignore the asn1DerEncodedPrincipals as this is kind of inline with what the
-                // OpenJDK SSLEngineImpl does.
-                keyManagerHolder.setKeyMaterialServerSide(engine);
-            } catch (Throwable cause) {
-                logger.debug("Failed to set the server-side key material", cause);
-                engine.initHandshakeException(cause);
             }
         }
     }
@@ -242,13 +219,12 @@ public final class ReferenceCountedOpenSslServerContext extends ReferenceCounted
         }
     }
 
-    @SuppressJava6Requirement(reason = "Usage guarded by java version check")
     private static final class ExtendedTrustManagerVerifyCallback extends AbstractCertificateVerifier {
         private final X509ExtendedTrustManager manager;
 
         ExtendedTrustManagerVerifyCallback(OpenSslEngineMap engineMap, X509ExtendedTrustManager manager) {
             super(engineMap);
-            this.manager = OpenSslTlsv13X509ExtendedTrustManager.wrap(manager);
+            this.manager = manager;
         }
 
         @Override

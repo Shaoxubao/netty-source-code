@@ -15,8 +15,6 @@
  */
 package io.netty.util;
 
-import io.netty.util.internal.ObjectUtil;
-
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
@@ -41,7 +39,9 @@ public class DefaultAttributeMap implements AttributeMap {
     @SuppressWarnings("unchecked")
     @Override
     public <T> Attribute<T> attr(AttributeKey<T> key) {
-        ObjectUtil.checkNotNull(key, "key");
+        if (key == null) {
+            throw new NullPointerException("key");
+        }
         AtomicReferenceArray<DefaultAttribute<?>> attributes = this.attributes;
         if (attributes == null) {
             // Not using ConcurrentHashMap due to high memory consumption.
@@ -90,7 +90,9 @@ public class DefaultAttributeMap implements AttributeMap {
 
     @Override
     public <T> boolean hasAttr(AttributeKey<T> key) {
-        ObjectUtil.checkNotNull(key, "key");
+        if (key == null) {
+            throw new NullPointerException("key");
+        }
         AtomicReferenceArray<DefaultAttribute<?>> attributes = this.attributes;
         if (attributes == null) {
             // no attribute exists

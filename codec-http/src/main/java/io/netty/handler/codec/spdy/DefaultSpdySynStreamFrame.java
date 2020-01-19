@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.spdy;
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.util.internal.StringUtil;
 
 /**
@@ -79,7 +77,11 @@ public class DefaultSpdySynStreamFrame extends DefaultSpdyHeadersFrame
 
     @Override
     public SpdySynStreamFrame setAssociatedStreamId(int associatedStreamId) {
-        checkPositiveOrZero(associatedStreamId, "associatedStreamId");
+        if (associatedStreamId < 0) {
+            throw new IllegalArgumentException(
+                    "Associated-To-Stream-ID cannot be negative: " +
+                    associatedStreamId);
+        }
         this.associatedStreamId = associatedStreamId;
         return this;
     }

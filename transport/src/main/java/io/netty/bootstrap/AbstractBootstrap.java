@@ -26,11 +26,10 @@ import io.netty.channel.DefaultChannelPromise;
 import io.netty.channel.EventLoop;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ReflectiveChannelFactory;
+import io.netty.util.internal.SocketUtils;
 import io.netty.util.AttributeKey;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import io.netty.util.internal.ObjectUtil;
-import io.netty.util.internal.SocketUtils;
 import io.netty.util.internal.StringUtil;
 import io.netty.util.internal.logging.InternalLogger;
 
@@ -38,9 +37,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * {@link AbstractBootstrap} is a helper class that makes it easy to bootstrap a {@link Channel}. It support
@@ -50,18 +48,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * transports such as datagram (UDP).</p>
  */
 public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C extends Channel> implements Cloneable {
-    @SuppressWarnings("unchecked")
-    static final Map.Entry<ChannelOption<?>, Object>[] EMPTY_OPTION_ARRAY = new Map.Entry[0];
-    @SuppressWarnings("unchecked")
-    static final Map.Entry<AttributeKey<?>, Object>[] EMPTY_ATTRIBUTE_ARRAY = new Map.Entry[0];
 
     volatile EventLoopGroup group;
     @SuppressWarnings("deprecation")
-    // 这个工厂类最终创建的通道实例，就是channel方法指定的NioServerSocketChannel
     private volatile ChannelFactory<? extends C> channelFactory;
     private volatile SocketAddress localAddress;
-    private final Map<ChannelOption<?>, Object> options = new ConcurrentHashMap<ChannelOption<?>, Object>();
-    private final Map<AttributeKey<?>, Object> attrs = new ConcurrentHashMap<AttributeKey<?>, Object>();
+    private final Map<ChannelOption<?>, Object> options = new LinkedHashMap<ChannelOption<?>, Object>();
+    private final Map<AttributeKey<?>, Object> attrs = new LinkedHashMap<AttributeKey<?>, Object>();
     private volatile ChannelHandler handler;
 
     AbstractBootstrap() {
@@ -73,8 +66,12 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         channelFactory = bootstrap.channelFactory;
         handler = bootstrap.handler;
         localAddress = bootstrap.localAddress;
-        options.putAll(bootstrap.options);
-        attrs.putAll(bootstrap.attrs);
+        synchronized (bootstrap.options) {
+            options.putAll(bootstrap.options);
+        }
+        synchronized (bootstrap.attrs) {
+            attrs.putAll(bootstrap.attrs);
+        }
     }
 
     /**
@@ -82,7 +79,9 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * {@link Channel}
      */
     public B group(EventLoopGroup group) {
-        ObjectUtil.checkNotNull(group, "group");
+        if (group == null) {
+            throw new NullPointerException("group");
+        }
         if (this.group != null) {
             throw new IllegalStateException("group set already");
         }
@@ -101,9 +100,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * {@link Channel} implementation has no no-args constructor.
      */
     public B channel(Class<? extends C> channelClass) {
-        return channelFactory(new ReflectiveChannelFactory<C>(
-                ObjectUtil.checkNotNull(channelClass, "channelClass")
-        ));
+        if (channelClass == null) {
+            throw new NullPointerException("channelClass");
+        }
+        return channelFactory(new ReflectiveChannelFactory<C>(channelClass));
     }
 
     /**
@@ -111,7 +111,9 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      */
     @Deprecated
     public B channelFactory(ChannelFactory<? extends C> channelFactory) {
-        ObjectUtil.checkNotNull(channelFactory, "channelFactory");
+        if (channelFactory == null) {
+            throw new NullPointerException("channelFactory");
+        }
         if (this.channelFactory != null) {
             throw new IllegalStateException("channelFactory set already");
         }
@@ -166,11 +168,17 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * created. Use a value of {@code null} to remove a previous set {@link ChannelOption}.
      */
     public <T> B option(ChannelOption<T> option, T value) {
-        ObjectUtil.checkNotNull(option, "option");
+        if (option == null) {
+            throw new NullPointerException("option");
+        }
         if (value == null) {
-            options.remove(option);
+            synchronized (options) {
+                options.remove(option);
+            }
         } else {
-            options.put(option, value);
+            synchronized (options) {
+                options.put(option, value);
+            }
         }
         return self();
     }
@@ -180,11 +188,17 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * {@code null}, the attribute of the specified {@code key} is removed.
      */
     public <T> B attr(AttributeKey<T> key, T value) {
-        ObjectUtil.checkNotNull(key, "key");
+        if (key == null) {
+            throw new NullPointerException("key");
+        }
         if (value == null) {
-            attrs.remove(key);
+            synchronized (attrs) {
+                attrs.remove(key);
+            }
         } else {
-            attrs.put(key, value);
+            synchronized (attrs) {
+                attrs.put(key, value);
+            }
         }
         return self();
     }
@@ -258,11 +272,14 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      */
     public ChannelFuture bind(SocketAddress localAddress) {
         validate();
-        return doBind(ObjectUtil.checkNotNull(localAddress, "localAddress"));
+        if (localAddress == null) {
+            throw new NullPointerException("localAddress");
+        }
+        return doBind(localAddress);
     }
 
     private ChannelFuture doBind(final SocketAddress localAddress) {
-        final ChannelFuture regFuture = initAndRegister(); // 初始化NioServerSocketChannel，并注册到bossGroup中
+        final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
             return regFuture;
@@ -270,7 +287,6 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
 
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
-            // register 动作已经完成，那么执行 bind 操作
             ChannelPromise promise = channel.newPromise();
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
@@ -298,19 +314,11 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         }
     }
 
-    // 首先调用 newChannel() 创建服务端的 Channel，在这个过程中会先调用 jdk 底层的 api 来创建一个 jdk 底层的 Channel，
-    // 然后 Netty 将其包装成一个自己的 Channel，同时会创建一些基本的组件（unsafe,pipeline）绑定在此 Channel 上；
-    // 然后调用 init() 方法初始化服务端 Channel，这个过程最重要的也就是为服务端 Channel 添加一个连接处理器 ServerBootstrapAcceptor；
-    // 随后调用 register() 方法注册 Selector，这个过程中 Netty 将 jdk 底层的 Channel 注册到事件轮询器 Selector 上，
-    // 并将 Netty 自己的 Channel 作为 attachment 绑定到对应的 jdk 底层的 Channel 上；
-    // 最后调用 doBind() 方法调用 jdk 底层的 api 实现对本地端口的监听，绑定后 Netty 会重新向 Selector 注册一个 OP_ACCEPT 事件，这样 Netty 就可以接受新的连接了
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
-            channel = channelFactory.newChannel(); // 1、创建NioServerSocketChannel实例(Channel 的实例化,ReflectiveChannelFactory在.channel()时已经设置,调用相应 Channel 的无参构造方法)
-
-            // 模板设计模式(父类运行过程中会调用多个方法，子类对特定的方法进行覆写)，对于 Bootstrap 和 ServerBootstrap，这里面有些不一样
-            init(channel);                         // 2、初始化NioServerSocketChannel，这是一个抽象方法，ServerBootStrap对此进行了覆盖
+            channel = channelFactory.newChannel();
+            init(channel);
         } catch (Throwable t) {
             if (channel != null) {
                 // channel can be null if newChannel crashed (eg SocketException("too many open files"))
@@ -322,8 +330,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
-        // config().group() 方法会返回前面实例化的 NioEventLoopGroup 的实例，然后调用其 register(channel) 方法
-        ChannelFuture regFuture = config().group().register(channel); // 3、NioServerSocketChannel注册到parentGroup中
+        ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
                 channel.close();
@@ -341,10 +348,6 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         //         because bind() or connect() will be executed *after* the scheduled registration task is executed
         //         because register(), bind(), and connect() are all bound to the same thread.
 
-        // 源码中说得很清楚，如果到这里，说明后续可以进行 connect() 或 bind() 了，因为两种情况：
-        // 1. 如果 register 动作是在 eventLoop 中发起的，那么到这里的时候，register 一定已经完成
-        // 2. 如果 register 任务已经提交到 eventLoop 中，也就是进到了 eventLoop 中的 taskQueue 中，
-        // 由于后续的 connect 或 bind 也会进入到同一个 eventLoop 的 queue 中，所以一定是会先 register 成功，才会执行 connect 或 bind
         return regFuture;
     }
 
@@ -372,7 +375,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * the {@link ChannelHandler} to use for serving the requests.
      */
     public B handler(ChannelHandler handler) {
-        this.handler = ObjectUtil.checkNotNull(handler, "handler");
+        if (handler == null) {
+            throw new NullPointerException("handler");
+        }
+        this.handler = handler;
         return self();
     }
 
@@ -391,6 +397,17 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
      * of the bootstrap.
      */
     public abstract AbstractBootstrapConfig<B, C> config();
+
+    static <K, V> Map<K, V> copiedMap(Map<K, V> map) {
+        final Map<K, V> copied;
+        synchronized (map) {
+            if (map.isEmpty()) {
+                return Collections.emptyMap();
+            }
+            copied = new LinkedHashMap<K, V>(map);
+        }
+        return Collections.unmodifiableMap(copied);
+    }
 
     final Map<ChannelOption<?>, Object> options0() {
         return options;
@@ -421,18 +438,10 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return copiedMap(attrs);
     }
 
-    static <K, V> Map<K, V> copiedMap(Map<K, V> map) {
-        if (map.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        return Collections.unmodifiableMap(new HashMap<K, V>(map));
-    }
-
-    static void setAttributes(Channel channel, Map.Entry<AttributeKey<?>, Object>[] attrs) {
-        for (Map.Entry<AttributeKey<?>, Object> e: attrs) {
-            @SuppressWarnings("unchecked")
-            AttributeKey<Object> key = (AttributeKey<Object>) e.getKey();
-            channel.attr(key).set(e.getValue());
+    static void setChannelOptions(
+            Channel channel, Map<ChannelOption<?>, Object> options, InternalLogger logger) {
+        for (Map.Entry<ChannelOption<?>, Object> e: options.entrySet()) {
+            setChannelOption(channel, e.getKey(), e.getValue(), logger);
         }
     }
 

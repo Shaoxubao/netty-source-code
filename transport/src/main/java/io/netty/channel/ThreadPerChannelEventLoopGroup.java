@@ -25,7 +25,6 @@ import io.netty.util.concurrent.GlobalEventExecutor;
 import io.netty.util.concurrent.Promise;
 import io.netty.util.concurrent.ThreadPerTaskExecutor;
 import io.netty.util.internal.EmptyArrays;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.ReadOnlyIterator;
 import io.netty.util.internal.ThrowableUtil;
@@ -43,10 +42,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * An {@link EventLoopGroup} that creates one {@link EventLoop} per {@link Channel}.
- *
- * @deprecated this will be remove in the next-major release.
  */
-@Deprecated
 public class ThreadPerChannelEventLoopGroup extends AbstractEventExecutorGroup implements EventLoopGroup {
 
     private final Object[] childArgs;
@@ -118,8 +114,13 @@ public class ThreadPerChannelEventLoopGroup extends AbstractEventExecutorGroup i
      * @param args              arguments which will passed to each {@link #newChild(Object...)} call.
      */
     protected ThreadPerChannelEventLoopGroup(int maxChannels, Executor executor, Object... args) {
-        ObjectUtil.checkPositiveOrZero(maxChannels, "maxChannels");
-        ObjectUtil.checkNotNull(executor, "executor");
+        if (maxChannels < 0) {
+            throw new IllegalArgumentException(String.format(
+                    "maxChannels: %d (expected: >= 0)", maxChannels));
+        }
+        if (executor == null) {
+            throw new NullPointerException("executor");
+        }
 
         if (args == null) {
             childArgs = EmptyArrays.EMPTY_OBJECTS;
@@ -131,7 +132,7 @@ public class ThreadPerChannelEventLoopGroup extends AbstractEventExecutorGroup i
         this.executor = executor;
 
         tooManyChannels = ThrowableUtil.unknownStackTrace(
-                ChannelException.newStatic("too many channels (max: " + maxChannels + ')', null),
+                new ChannelException("too many channels (max: " + maxChannels + ')'),
                 ThreadPerChannelEventLoopGroup.class, "nextChild()");
     }
 
@@ -270,7 +271,9 @@ public class ThreadPerChannelEventLoopGroup extends AbstractEventExecutorGroup i
 
     @Override
     public ChannelFuture register(Channel channel) {
-        ObjectUtil.checkNotNull(channel, "channel");
+        if (channel == null) {
+            throw new NullPointerException("channel");
+        }
         try {
             EventLoop l = nextChild();
             return l.register(new DefaultChannelPromise(channel, l));
@@ -292,7 +295,9 @@ public class ThreadPerChannelEventLoopGroup extends AbstractEventExecutorGroup i
     @Deprecated
     @Override
     public ChannelFuture register(Channel channel, ChannelPromise promise) {
-        ObjectUtil.checkNotNull(channel, "channel");
+        if (channel == null) {
+            throw new NullPointerException("channel");
+        }
         try {
             return nextChild().register(channel, promise);
         } catch (Throwable t) {

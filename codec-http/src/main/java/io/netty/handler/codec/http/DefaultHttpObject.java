@@ -16,7 +16,6 @@
 package io.netty.handler.codec.http;
 
 import io.netty.handler.codec.DecoderResult;
-import io.netty.util.internal.ObjectUtil;
 
 public class DefaultHttpObject implements HttpObject {
 
@@ -40,7 +39,10 @@ public class DefaultHttpObject implements HttpObject {
 
     @Override
     public void setDecoderResult(DecoderResult decoderResult) {
-        this.decoderResult = ObjectUtil.checkNotNull(decoderResult, "decoderResult");
+        if (decoderResult == null) {
+            throw new NullPointerException("decoderResult");
+        }
+        this.decoderResult = decoderResult;
     }
 
     @Override

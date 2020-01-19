@@ -27,17 +27,16 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import static io.netty.resolver.dns.DefaultDnsServerAddressStreamProvider.DNS_PORT;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
 import static io.netty.util.internal.StringUtil.indexOfNonWhiteSpace;
-import static io.netty.util.internal.StringUtil.indexOfWhiteSpace;
 
 /**
  * Able to parse files such as <a href="https://linux.die.net/man/5/resolver">/etc/resolv.conf</a> and
@@ -60,7 +59,6 @@ public final class UnixResolverDnsServerAddressStreamProvider implements DnsServ
     static final int DEFAULT_NDOTS = 1;
     private final DnsServerAddresses defaultNameServerAddresses;
     private final Map<String, DnsServerAddresses> domainToNameServerStreamMap;
-    private static final Pattern SEARCH_DOMAIN_PATTERN = Pattern.compile("\\s+");
 
     /**
      * Attempt to parse {@code /etc/resolv.conf} and files in the {@code /etc/resolver} directory by default.
@@ -168,65 +166,48 @@ public final class UnixResolverDnsServerAddressStreamProvider implements DnsServ
                 String line;
                 while ((line = br.readLine()) != null) {
                     line = line.trim();
-                    try {
-                        char c;
-                        if (line.isEmpty() || (c = line.charAt(0)) == '#' || c == ';') {
-                            continue;
+                    char c;
+                    if (line.isEmpty() || (c = line.charAt(0)) == '#' || c == ';') {
+                        continue;
+                    }
+                    if (line.startsWith(NAMESERVER_ROW_LABEL)) {
+                        int i = indexOfNonWhiteSpace(line, NAMESERVER_ROW_LABEL.length());
+                        if (i < 0) {
+                            throw new IllegalArgumentException("error parsing label " + NAMESERVER_ROW_LABEL +
+                                    " in file " + etcResolverFile + ". value: " + line);
                         }
-                        if (line.startsWith(NAMESERVER_ROW_LABEL)) {
-                            int i = indexOfNonWhiteSpace(line, NAMESERVER_ROW_LABEL.length());
-                            if (i < 0) {
+                        String maybeIP = line.substring(i);
+                        // There may be a port appended onto the IP address so we attempt to extract it.
+                        if (!NetUtil.isValidIpV4Address(maybeIP) && !NetUtil.isValidIpV6Address(maybeIP)) {
+                            i = maybeIP.lastIndexOf('.');
+                            if (i + 1 >= maybeIP.length()) {
                                 throw new IllegalArgumentException("error parsing label " + NAMESERVER_ROW_LABEL +
-                                        " in file " + etcResolverFile + ". value: " + line);
+                                        " in file " + etcResolverFile + ". invalid IP value: " + line);
                             }
-                            String maybeIP;
-                            int x = indexOfWhiteSpace(line, i);
-                            if (x == -1) {
-                                maybeIP = line.substring(i);
-                            } else {
-                                // ignore comments
-                                int idx = indexOfNonWhiteSpace(line, x);
-                                if (idx == -1 || line.charAt(idx) != '#') {
-                                    throw new IllegalArgumentException("error parsing label " + NAMESERVER_ROW_LABEL +
-                                            " in file " + etcResolverFile + ". value: " + line);
-                                }
-                                maybeIP = line.substring(i, x);
-                            }
-
-                            // There may be a port appended onto the IP address so we attempt to extract it.
-                            if (!NetUtil.isValidIpV4Address(maybeIP) && !NetUtil.isValidIpV6Address(maybeIP)) {
-                                i = maybeIP.lastIndexOf('.');
-                                if (i + 1 >= maybeIP.length()) {
-                                    throw new IllegalArgumentException("error parsing label " + NAMESERVER_ROW_LABEL +
-                                            " in file " + etcResolverFile + ". invalid IP value: " + line);
-                                }
-                                port = Integer.parseInt(maybeIP.substring(i + 1));
-                                maybeIP = maybeIP.substring(0, i);
-                            }
-                            addresses.add(SocketUtils.socketAddress(maybeIP, port));
-                        } else if (line.startsWith(DOMAIN_ROW_LABEL)) {
-                            int i = indexOfNonWhiteSpace(line, DOMAIN_ROW_LABEL.length());
-                            if (i < 0) {
-                                throw new IllegalArgumentException("error parsing label " + DOMAIN_ROW_LABEL +
-                                        " in file " + etcResolverFile + " value: " + line);
-                            }
-                            domainName = line.substring(i);
-                            if (!addresses.isEmpty()) {
-                                putIfAbsent(domainToNameServerStreamMap, domainName, addresses);
-                            }
-                            addresses = new ArrayList<InetSocketAddress>(2);
-                        } else if (line.startsWith(PORT_ROW_LABEL)) {
-                            int i = indexOfNonWhiteSpace(line, PORT_ROW_LABEL.length());
-                            if (i < 0) {
-                                throw new IllegalArgumentException("error parsing label " + PORT_ROW_LABEL +
-                                        " in file " + etcResolverFile + " value: " + line);
-                            }
-                            port = Integer.parseInt(line.substring(i));
-                        } else if (line.startsWith(SORTLIST_ROW_LABEL)) {
-                            logger.info("row type {} not supported. Ignoring line: {}", SORTLIST_ROW_LABEL, line);
+                            port = Integer.parseInt(maybeIP.substring(i + 1));
+                            maybeIP = maybeIP.substring(0, i);
                         }
-                    } catch (IllegalArgumentException e) {
-                        logger.warn("Could not parse entry. Ignoring line: {}", line, e);
+                        addresses.add(SocketUtils.socketAddress(maybeIP, port));
+                    } else if (line.startsWith(DOMAIN_ROW_LABEL)) {
+                        int i = indexOfNonWhiteSpace(line, DOMAIN_ROW_LABEL.length());
+                        if (i < 0) {
+                            throw new IllegalArgumentException("error parsing label " + DOMAIN_ROW_LABEL +
+                                    " in file " + etcResolverFile + " value: " + line);
+                        }
+                        domainName = line.substring(i);
+                        if (!addresses.isEmpty()) {
+                            putIfAbsent(domainToNameServerStreamMap, domainName, addresses);
+                        }
+                        addresses = new ArrayList<InetSocketAddress>(2);
+                    } else if (line.startsWith(PORT_ROW_LABEL)) {
+                        int i = indexOfNonWhiteSpace(line, PORT_ROW_LABEL.length());
+                        if (i < 0) {
+                            throw new IllegalArgumentException("error parsing label " + PORT_ROW_LABEL +
+                                    " in file " + etcResolverFile + " value: " + line);
+                        }
+                        port = Integer.parseInt(line.substring(i));
+                    } else if (line.startsWith(SORTLIST_ROW_LABEL)) {
+                        logger.info("row type {} not supported. ignoring line: {}", SORTLIST_ROW_LABEL, line);
                     }
                 }
                 if (!addresses.isEmpty()) {
@@ -342,10 +323,7 @@ public final class UnixResolverDnsServerAddressStreamProvider implements DnsServ
                 } else if (line.startsWith(SEARCH_ROW_LABEL)) {
                     int i = indexOfNonWhiteSpace(line, SEARCH_ROW_LABEL.length());
                     if (i >= 0) {
-                        // May contain more then one entry, either seperated by whitespace or tab.
-                        // See https://linux.die.net/man/5/resolver
-                        String[] domains = SEARCH_DOMAIN_PATTERN.split(line.substring(i));
-                        Collections.addAll(searchDomains, domains);
+                        searchDomains.add(line.substring(i));
                     }
                 }
             }

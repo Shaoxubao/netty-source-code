@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.http;
 
-import io.netty.util.internal.ObjectUtil;
-
 import java.util.Collections;
 import java.util.Set;
 import java.util.TreeSet;
@@ -133,7 +131,9 @@ public class DefaultCookie extends io.netty.handler.codec.http.cookie.DefaultCoo
     @Override
     @Deprecated
     public void setPorts(int... ports) {
-        ObjectUtil.checkNotNull(ports, "ports");
+        if (ports == null) {
+            throw new NullPointerException("ports");
+        }
 
         int[] portsCopy = ports.clone();
         if (portsCopy.length == 0) {

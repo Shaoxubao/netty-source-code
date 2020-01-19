@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Netty Project
+ * Copyright 2017 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -22,7 +22,6 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -152,56 +151,68 @@ public class HttpMethodMapBenchmark extends AbstractMicrobenchmark {
     }
 
     @Benchmark
-    public void oldMapKnownMethods(Blackhole bh) throws Exception {
+    public int oldMapKnownMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < KNOWN_METHODS.length; ++i) {
-            bh.consume(OLD_MAP.get(KNOWN_METHODS[i]));
+            x += OLD_MAP.get(KNOWN_METHODS[i]).toString().length();
         }
+        return x;
     }
 
     @Benchmark
-    public void newMapKnownMethods(Blackhole bh) throws Exception {
+    public int newMapKnownMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < KNOWN_METHODS.length; ++i) {
-            bh.consume(NEW_MAP.get(KNOWN_METHODS[i]));
+            x += NEW_MAP.get(KNOWN_METHODS[i]).toString().length();
         }
+        return x;
     }
 
     @Benchmark
-    public void oldMapMixMethods(Blackhole bh) throws Exception {
+    public int oldMapMixMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < MIXED_METHODS.length; ++i) {
             HttpMethod method = OLD_MAP.get(MIXED_METHODS[i]);
             if (method != null) {
-                bh.consume(method);
+                x += method.toString().length();
             }
         }
+        return x;
     }
 
     @Benchmark
-    public void newMapMixMethods(Blackhole bh) throws Exception {
+    public int newMapMixMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < MIXED_METHODS.length; ++i) {
             HttpMethod method = NEW_MAP.get(MIXED_METHODS[i]);
             if (method != null) {
-                bh.consume(method);
+                x += method.toString().length();
             }
         }
+        return x;
     }
 
     @Benchmark
-    public void oldMapUnknownMethods(Blackhole bh) throws Exception {
+    public int oldMapUnknownMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < UNKNOWN_METHODS.length; ++i) {
             HttpMethod method = OLD_MAP.get(UNKNOWN_METHODS[i]);
             if (method != null) {
-                bh.consume(method);
+                x += method.toString().length();
             }
         }
+        return x;
     }
 
     @Benchmark
-    public void newMapUnknownMethods(Blackhole bh) throws Exception {
+    public int newMapUnknownMethods() throws Exception {
+        int x = 0;
         for (int i = 0; i < UNKNOWN_METHODS.length; ++i) {
             HttpMethod method = NEW_MAP.get(UNKNOWN_METHODS[i]);
             if (method != null) {
-                bh.consume(method);
+                x += method.toString().length();
             }
         }
+        return x;
     }
 }

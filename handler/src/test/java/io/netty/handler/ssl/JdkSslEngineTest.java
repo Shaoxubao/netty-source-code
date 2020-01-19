@@ -26,7 +26,6 @@ import java.security.Provider;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import io.netty.util.internal.EmptyArrays;
 import io.netty.util.internal.PlatformDependent;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -142,18 +141,12 @@ public class JdkSslEngineTest extends SSLEngineTest {
     private static final String FALLBACK_APPLICATION_LEVEL_PROTOCOL = "my-protocol-http1_1";
     private static final String APPLICATION_LEVEL_PROTOCOL_NOT_COMPATIBLE = "my-protocol-FOO";
 
-    @Parameterized.Parameters(name = "{index}: providerType = {0}, bufferType = {1}, combo = {2}, delegate = {3}")
+    @Parameterized.Parameters(name = "{index}: providerType = {0}, bufferType = {1}")
     public static Collection<Object[]> data() {
         List<Object[]> params = new ArrayList<Object[]>();
         for (ProviderType providerType : ProviderType.values()) {
             for (BufferType bufferType : BufferType.values()) {
-                params.add(new Object[]{ providerType, bufferType, ProtocolCipherCombo.tlsv12(), true });
-                params.add(new Object[]{ providerType, bufferType, ProtocolCipherCombo.tlsv12(), false });
-
-                if (PlatformDependent.javaVersion() >= 11) {
-                    params.add(new Object[] { providerType, bufferType, ProtocolCipherCombo.tlsv13(), true });
-                    params.add(new Object[] { providerType, bufferType, ProtocolCipherCombo.tlsv13(), false });
-                }
+                params.add(new Object[]{providerType, bufferType});
             }
         }
         return params;
@@ -163,9 +156,8 @@ public class JdkSslEngineTest extends SSLEngineTest {
 
     private Provider provider;
 
-    public JdkSslEngineTest(ProviderType providerType, BufferType bufferType,
-                            ProtocolCipherCombo protocolCipherCombo, boolean delegate) {
-        super(bufferType, protocolCipherCombo, delegate);
+    public JdkSslEngineTest(ProviderType providerType, BufferType bufferType) {
+        super(bufferType);
         this.providerType = providerType;
     }
 
@@ -238,16 +230,14 @@ public class JdkSslEngineTest extends SSLEngineTest {
 
                 SslContext serverSslCtx = new JdkSslServerContext(providerType.provider(),
                     ssc.certificate(), ssc.privateKey(), null, null,
-                    IdentityCipherSuiteFilter.INSTANCE, serverApn, 0, 0, null);
+                    IdentityCipherSuiteFilter.INSTANCE, serverApn, 0, 0);
                 SslContext clientSslCtx = new JdkSslClientContext(providerType.provider(), null,
                     InsecureTrustManagerFactory.INSTANCE, null,
                     IdentityCipherSuiteFilter.INSTANCE, clientApn, 0, 0);
 
-                setupHandlers(new TestDelegatingSslContext(serverSslCtx), new TestDelegatingSslContext(clientSslCtx));
+                setupHandlers(serverSslCtx, clientSslCtx);
                 assertTrue(clientLatch.await(2, TimeUnit.SECONDS));
-                // When using TLSv1.3 the handshake is NOT sent in an extra round trip which means there will be
-                // no exception reported in this case but just the channel will be closed.
-                assertTrue(clientException instanceof SSLHandshakeException || clientException == null);
+                assertTrue(clientException instanceof SSLHandshakeException);
             }
         } catch (SkipTestException e) {
             // ALPN availability is dependent on the java version. If ALPN is not available because of
@@ -366,18 +356,6 @@ public class JdkSslEngineTest extends SSLEngineTest {
 
         SkipTestException(String message) {
             super(message);
-        }
-    }
-
-    private final class TestDelegatingSslContext extends DelegatingSslContext {
-        TestDelegatingSslContext(SslContext ctx) {
-            super(ctx);
-        }
-
-        @Override
-        protected void initEngine(SSLEngine engine) {
-            engine.setEnabledProtocols(protocols());
-            engine.setEnabledCipherSuites(ciphers().toArray(EmptyArrays.EMPTY_STRINGS));
         }
     }
 }

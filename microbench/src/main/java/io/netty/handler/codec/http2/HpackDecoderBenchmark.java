@@ -72,7 +72,7 @@ public class HpackDecoderBenchmark extends AbstractMicrobenchmark {
     @Benchmark
     @BenchmarkMode(Mode.Throughput)
     public void decode(final Blackhole bh) throws Http2Exception {
-        HpackDecoder hpackDecoder = new HpackDecoder(Integer.MAX_VALUE);
+        HpackDecoder hpackDecoder = new HpackDecoder(DEFAULT_HEADER_LIST_SIZE, 32);
         @SuppressWarnings("unchecked")
         Http2Headers headers =
                 new DefaultHttp2Headers() {

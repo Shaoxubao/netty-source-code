@@ -24,12 +24,10 @@ import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.CharsetUtil;
@@ -416,39 +414,6 @@ public class HttpPostRequestDecoderTest {
     }
 
     @Test
-    public void testDecodeOtherMimeHeaderFields() throws Exception {
-        final String boundary = "74e78d11b0214bdcbc2f86491eeb4902";
-        String filecontent = "123456";
-
-        final String body = "--" + boundary + "\r\n" +
-                            "Content-Disposition: form-data; name=\"file\"; filename=" + "\"" + "attached.txt" + "\"" +
-                            "\r\n" +
-                            "Content-Type: application/octet-stream" + "\r\n" +
-                            "Content-Encoding: gzip" + "\r\n" +
-                            "\r\n" +
-                            filecontent +
-                            "\r\n" +
-                            "--" + boundary + "--";
-
-        final DefaultFullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1,
-                                                                      HttpMethod.POST,
-                                                                      "http://localhost",
-                                                                      Unpooled.wrappedBuffer(body.getBytes()));
-        req.headers().add(HttpHeaderNames.CONTENT_TYPE, "multipart/form-data; boundary=" + boundary);
-        req.headers().add(HttpHeaderNames.TRANSFER_ENCODING, HttpHeaderValues.CHUNKED);
-        final DefaultHttpDataFactory inMemoryFactory = new DefaultHttpDataFactory(false);
-        final HttpPostRequestDecoder decoder = new HttpPostRequestDecoder(inMemoryFactory, req);
-        assertFalse(decoder.getBodyHttpDatas().isEmpty());
-        InterfaceHttpData part1 = decoder.getBodyHttpDatas().get(0);
-        assertTrue("the item should be a FileUpload", part1 instanceof FileUpload);
-        FileUpload fileUpload = (FileUpload) part1;
-        byte[] fileBytes = fileUpload.get();
-        assertTrue("the filecontent should not be decoded", filecontent.equals(new String(fileBytes)));
-        decoder.destroy();
-        req.release();
-    }
-
-    @Test
     public void testMultipartRequestWithFileInvalidCharset() throws Exception {
         final String boundary = "dLV9Wyq26L_-JQxk6ferf-RT153LhOO";
         final DefaultFullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST,
@@ -690,82 +655,5 @@ public class HttpPostRequestDecoderTest {
         FileUpload fileUpload = (FileUpload) part1;
         assertEquals("tmp-0.txt", fileUpload.getFilename());
         decoder.destroy();
-    }
-
-    // https://github.com/netty/netty/issues/8575
-    @Test
-    public void testMultipartRequest() throws Exception {
-        String BOUNDARY = "01f136d9282f";
-
-        ByteBuf byteBuf = Unpooled.wrappedBuffer(("--" + BOUNDARY + "\n" +
-                "Content-Disposition: form-data; name=\"msg_id\"\n" +
-                "\n" +
-                "15200\n" +
-                "--" + BOUNDARY + "\n" +
-                "Content-Disposition: form-data; name=\"msg\"\n" +
-                "\n" +
-                "test message\n" +
-                "--" + BOUNDARY + "--").getBytes());
-
-        FullHttpRequest req = new DefaultFullHttpRequest(HttpVersion.HTTP_1_0, HttpMethod.POST, "/up", byteBuf);
-        req.headers().add(HttpHeaderNames.CONTENT_TYPE, "multipart/form-data; boundary=" + BOUNDARY);
-
-        HttpPostRequestDecoder decoder =
-                new HttpPostRequestDecoder(new DefaultHttpDataFactory(DefaultHttpDataFactory.MINSIZE),
-                        req,
-                        CharsetUtil.UTF_8);
-
-        assertTrue(decoder.isMultipart());
-        assertFalse(decoder.getBodyHttpDatas().isEmpty());
-        assertEquals(2, decoder.getBodyHttpDatas().size());
-        assertEquals("test message", ((Attribute) decoder.getBodyHttpData("msg")).getValue());
-        assertEquals("15200", ((Attribute) decoder.getBodyHttpData("msg_id")).getValue());
-
-        decoder.destroy();
-        assertEquals(1, req.refCnt());
-    }
-
-    @Test(expected = HttpPostRequestDecoder.ErrorDataDecoderException.class)
-    public void testNotLeak() {
-        FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/",
-                Unpooled.copiedBuffer("a=1&&b=2", CharsetUtil.US_ASCII));
-        try {
-            new HttpPostStandardRequestDecoder(request);
-        } finally {
-            assertTrue(request.release());
-        }
-    }
-
-    @Test(expected = HttpPostRequestDecoder.ErrorDataDecoderException.class)
-    public void testNotLeakDirectBufferWhenWrapIllegalArgumentException() {
-        testNotLeakWhenWrapIllegalArgumentException(Unpooled.directBuffer());
-    }
-
-    @Test(expected = HttpPostRequestDecoder.ErrorDataDecoderException.class)
-    public void testNotLeakHeapBufferWhenWrapIllegalArgumentException() {
-        testNotLeakWhenWrapIllegalArgumentException(Unpooled.buffer());
-    }
-
-    private static void testNotLeakWhenWrapIllegalArgumentException(ByteBuf buf) {
-        buf.writeCharSequence("==", CharsetUtil.US_ASCII);
-        FullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/", buf);
-        try {
-            new HttpPostStandardRequestDecoder(request);
-        } finally {
-            assertTrue(request.release());
-        }
-    }
-
-    @Test
-    public void testMultipartFormDataContentType() {
-        HttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.POST, "/");
-        assertFalse(HttpPostRequestDecoder.isMultipart(request));
-
-        String multipartDataValue = HttpHeaderValues.MULTIPART_FORM_DATA + ";" + "boundary=gc0p4Jq0M2Yt08jU534c0p";
-        request.headers().set(HttpHeaderNames.CONTENT_TYPE, ";" + multipartDataValue);
-        assertFalse(HttpPostRequestDecoder.isMultipart(request));
-
-        request.headers().set(HttpHeaderNames.CONTENT_TYPE, multipartDataValue);
-        assertTrue(HttpPostRequestDecoder.isMultipart(request));
     }
 }

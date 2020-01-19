@@ -28,11 +28,6 @@ final class ComposedLastHttpContent implements LastHttpContent {
         this.trailingHeaders = trailingHeaders;
     }
 
-    ComposedLastHttpContent(HttpHeaders trailingHeaders, DecoderResult result) {
-        this(trailingHeaders);
-        this.result = result;
-    }
-
     @Override
     public HttpHeaders trailingHeaders() {
         return trailingHeaders;

@@ -18,7 +18,6 @@ package io.netty.handler.codec.http;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
-import java.nio.charset.IllegalCharsetNameException;
 import java.nio.charset.UnsupportedCharsetException;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -27,7 +26,6 @@ import java.util.List;
 import io.netty.util.AsciiString;
 import io.netty.util.CharsetUtil;
 import io.netty.util.NetUtil;
-import io.netty.util.internal.ObjectUtil;
 
 /**
  * Utility methods useful in the HTTP context.
@@ -67,9 +65,16 @@ public final class HttpUtil {
      * {@link HttpVersion#isKeepAliveDefault()}.
      */
     public static boolean isKeepAlive(HttpMessage message) {
-        return !message.headers().containsValue(HttpHeaderNames.CONNECTION, HttpHeaderValues.CLOSE, true) &&
-               (message.protocolVersion().isKeepAliveDefault() ||
-                message.headers().containsValue(HttpHeaderNames.CONNECTION, HttpHeaderValues.KEEP_ALIVE, true));
+        CharSequence connection = message.headers().get(HttpHeaderNames.CONNECTION);
+        if (HttpHeaderValues.CLOSE.contentEqualsIgnoreCase(connection)) {
+            return false;
+        }
+
+        if (message.protocolVersion().isKeepAliveDefault()) {
+            return !HttpHeaderValues.CLOSE.contentEqualsIgnoreCase(connection);
+        } else {
+            return HttpHeaderValues.KEEP_ALIVE.contentEqualsIgnoreCase(connection);
+        }
     }
 
     /**
@@ -246,9 +251,13 @@ public final class HttpUtil {
      * present
      */
     public static boolean is100ContinueExpected(HttpMessage message) {
-        return isExpectHeaderValid(message)
-          // unquoted tokens in the expect header are case-insensitive, thus 100-continue is case insensitive
-          && message.headers().contains(HttpHeaderNames.EXPECT, HttpHeaderValues.CONTINUE, true);
+        if (!isExpectHeaderValid(message)) {
+            return false;
+        }
+
+        final String expectValue = message.headers().get(HttpHeaderNames.EXPECT);
+        // unquoted tokens in the expect header are case-insensitive, thus 100-continue is case insensitive
+        return HttpHeaderValues.CONTINUE.toString().equalsIgnoreCase(expectValue);
     }
 
     /**
@@ -393,14 +402,15 @@ public final class HttpUtil {
             if (charsetCharSequence != null) {
                 try {
                     return Charset.forName(charsetCharSequence.toString());
-                } catch (IllegalCharsetNameException ignored) {
-                    // just return the default charset
                 } catch (UnsupportedCharsetException ignored) {
-                    // just return the default charset
+                    return defaultCharset;
                 }
+            } else {
+                return defaultCharset;
             }
+        } else {
+            return defaultCharset;
         }
-        return defaultCharset;
     }
 
     /**
@@ -449,7 +459,9 @@ public final class HttpUtil {
      * @throws NullPointerException in case if {@code contentTypeValue == null}
      */
     public static CharSequence getCharsetAsSequence(CharSequence contentTypeValue) {
-        ObjectUtil.checkNotNull(contentTypeValue, "contentTypeValue");
+        if (contentTypeValue == null) {
+            throw new NullPointerException("contentTypeValue");
+        }
 
         int indexOfCharset = AsciiString.indexOfIgnoreCaseAscii(contentTypeValue, CHARSET_EQUALS, 0);
         if (indexOfCharset == AsciiString.INDEX_NOT_FOUND) {
@@ -503,7 +515,9 @@ public final class HttpUtil {
      * @throws NullPointerException in case if {@code contentTypeValue == null}
      */
     public static CharSequence getMimeType(CharSequence contentTypeValue) {
-        ObjectUtil.checkNotNull(contentTypeValue, "contentTypeValue");
+        if (contentTypeValue == null) {
+            throw new NullPointerException("contentTypeValue");
+        }
 
         int indexOfSemicolon = AsciiString.indexOfIgnoreCaseAscii(contentTypeValue, SEMICOLON, 0);
         if (indexOfSemicolon != AsciiString.INDEX_NOT_FOUND) {
@@ -515,7 +529,7 @@ public final class HttpUtil {
 
     /**
      * Formats the host string of an address so it can be used for computing an HTTP component
-     * such as a URL or a Host header
+     * such as an URL or a Host header
      *
      * @param addr the address
      * @return the formatted String

@@ -46,7 +46,7 @@ public class GlobalEventExecutorTest {
         }
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void testAutomaticStartStop() throws Exception {
         final TestRunnable task = new TestRunnable(500);
         e.execute(task);
@@ -56,7 +56,10 @@ public class GlobalEventExecutorTest {
         assertThat(thread, is(not(nullValue())));
         assertThat(thread.isAlive(), is(true));
 
-        thread.join();
+        Thread.sleep(1500);
+
+        // Ensure the thread stopped itself after running the task.
+        assertThat(thread.isAlive(), is(false));
         assertThat(task.ran.get(), is(true));
 
         // Ensure another new thread starts again.
@@ -65,12 +68,14 @@ public class GlobalEventExecutorTest {
         assertThat(e.thread, not(sameInstance(thread)));
         thread = e.thread;
 
-        thread.join();
+        Thread.sleep(1500);
 
+        // Ensure the thread stopped itself after running the task.
+        assertThat(thread.isAlive(), is(false));
         assertThat(task.ran.get(), is(true));
     }
 
-    @Test(timeout = 5000)
+    @Test
     public void testScheduledTasks() throws Exception {
         TestRunnable task = new TestRunnable(0);
         ScheduledFuture<?> f = e.schedule(task, 1500, TimeUnit.MILLISECONDS);
@@ -82,7 +87,10 @@ public class GlobalEventExecutorTest {
         assertThat(thread, is(not(nullValue())));
         assertThat(thread.isAlive(), is(true));
 
-        thread.join();
+        Thread.sleep(1500);
+
+        // Now it should be stopped.
+        assertThat(thread.isAlive(), is(false));
     }
 
     // ensure that when a task submission causes a new thread to be created, the thread inherits the thread group of the

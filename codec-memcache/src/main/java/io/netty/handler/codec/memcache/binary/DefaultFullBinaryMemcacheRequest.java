@@ -17,7 +17,6 @@ package io.netty.handler.codec.memcache.binary;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.UnstableApi;
 
 /**
@@ -49,7 +48,11 @@ public class DefaultFullBinaryMemcacheRequest extends DefaultBinaryMemcacheReque
     public DefaultFullBinaryMemcacheRequest(ByteBuf key, ByteBuf extras,
                                             ByteBuf content) {
         super(key, extras);
-        this.content = ObjectUtil.checkNotNull(content, "content");
+        if (content == null) {
+            throw new NullPointerException("Supplied content is null.");
+        }
+
+        this.content = content;
         setTotalBodyLength(keyLength() + extrasLength() + content.readableBytes());
     }
 
@@ -99,7 +102,7 @@ public class DefaultFullBinaryMemcacheRequest extends DefaultBinaryMemcacheReque
         if (extras != null) {
             extras = extras.copy();
         }
-        return newInstance(key, extras, content().copy());
+        return new DefaultFullBinaryMemcacheRequest(key, extras, content().copy());
     }
 
     @Override
@@ -112,7 +115,7 @@ public class DefaultFullBinaryMemcacheRequest extends DefaultBinaryMemcacheReque
         if (extras != null) {
             extras = extras.duplicate();
         }
-        return newInstance(key, extras, content().duplicate());
+        return new DefaultFullBinaryMemcacheRequest(key, extras, content().duplicate());
     }
 
     @Override
@@ -130,12 +133,6 @@ public class DefaultFullBinaryMemcacheRequest extends DefaultBinaryMemcacheReque
         if (extras != null) {
             extras = extras.retainedDuplicate();
         }
-        return newInstance(key, extras, content);
-    }
-
-    private DefaultFullBinaryMemcacheRequest newInstance(ByteBuf key, ByteBuf extras, ByteBuf content) {
-        DefaultFullBinaryMemcacheRequest newInstance = new DefaultFullBinaryMemcacheRequest(key, extras, content);
-        copyMeta(newInstance);
-        return newInstance;
+        return new DefaultFullBinaryMemcacheRequest(key, extras, content);
     }
 }

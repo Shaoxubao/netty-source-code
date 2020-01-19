@@ -64,8 +64,7 @@ import java.util.Locale;
 @RunWith(Parameterized.class)
 public class SslErrorTest {
 
-    @Parameterized.Parameters(
-            name = "{index}: serverProvider = {0}, clientProvider = {1}, exception = {2}, serverProduceError = {3}")
+    @Parameterized.Parameters(name = "{index}: serverProvider = {0}, clientProvider = {1}, exception = {2}")
     public static Collection<Object[]> data() {
         List<SslProvider> serverProviders = new ArrayList<SslProvider>(2);
         List<SslProvider> clientProviders = new ArrayList<SslProvider>(3);
@@ -96,8 +95,7 @@ public class SslErrorTest {
         for (SslProvider serverProvider: serverProviders) {
             for (SslProvider clientProvider: clientProviders) {
                 for (CertificateException exception: exceptions) {
-                    params.add(new Object[] { serverProvider, clientProvider, exception, true });
-                    params.add(new Object[] { serverProvider, clientProvider, exception, false });
+                    params.add(new Object[] { serverProvider, clientProvider, exception});
                 }
             }
         }
@@ -112,14 +110,11 @@ public class SslErrorTest {
     private final SslProvider serverProvider;
     private final SslProvider clientProvider;
     private final CertificateException exception;
-    private final boolean serverProduceError;
 
-    public SslErrorTest(SslProvider serverProvider, SslProvider clientProvider,
-                        CertificateException exception, boolean serverProduceError) {
+    public SslErrorTest(SslProvider serverProvider, SslProvider clientProvider, CertificateException exception) {
         this.serverProvider = serverProvider;
         this.clientProvider = clientProvider;
         this.exception = exception;
-        this.serverProduceError = serverProduceError;
     }
 
     @Test(timeout = 30000)
@@ -129,41 +124,55 @@ public class SslErrorTest {
         Assume.assumeTrue(OpenSsl.isAvailable());
 
         SelfSignedCertificate ssc = new SelfSignedCertificate();
-
-        SslContextBuilder sslServerCtxBuilder = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
+        final SslContext sslServerCtx = SslContextBuilder.forServer(ssc.certificate(), ssc.privateKey())
                 .sslProvider(serverProvider)
-                .clientAuth(ClientAuth.REQUIRE);
-        SslContextBuilder sslClientCtxBuilder =  SslContextBuilder.forClient()
+                .trustManager(new SimpleTrustManagerFactory() {
+            @Override
+            protected void engineInit(KeyStore keyStore) { }
+            @Override
+            protected void engineInit(ManagerFactoryParameters managerFactoryParameters) { }
+
+            @Override
+            protected TrustManager[] engineGetTrustManagers() {
+                return new TrustManager[] { new X509TrustManager() {
+
+                    @Override
+                    public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
+                            throws CertificateException {
+                        throw exception;
+                    }
+
+                    @Override
+                    public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
+                            throws CertificateException {
+                        // NOOP
+                    }
+
+                    @Override
+                    public X509Certificate[] getAcceptedIssuers() {
+                        return EmptyArrays.EMPTY_X509_CERTIFICATES;
+                    }
+                } };
+            }
+        }).clientAuth(ClientAuth.REQUIRE).build();
+
+        final SslContext sslClientCtx = SslContextBuilder.forClient()
+                .trustManager(InsecureTrustManagerFactory.INSTANCE)
                 .keyManager(new File(getClass().getResource("test.crt").getFile()),
                         new File(getClass().getResource("test_unencrypted.pem").getFile()))
-                .sslProvider(clientProvider);
-
-        if (serverProduceError) {
-            sslServerCtxBuilder.trustManager(new ExceptionTrustManagerFactory());
-            sslClientCtxBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
-        } else {
-            sslServerCtxBuilder.trustManager(InsecureTrustManagerFactory.INSTANCE);
-            sslClientCtxBuilder.trustManager(new ExceptionTrustManagerFactory());
-        }
-
-        final SslContext sslServerCtx = sslServerCtxBuilder.build();
-        final SslContext sslClientCtx = sslClientCtxBuilder.build();
+                .sslProvider(clientProvider).build();
 
         Channel serverChannel = null;
         Channel clientChannel = null;
         EventLoopGroup group = new NioEventLoopGroup();
-        final Promise<Void> promise = group.next().newPromise();
         try {
             serverChannel = new ServerBootstrap().group(group)
                     .channel(NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.INFO))
                     .childHandler(new ChannelInitializer<Channel>() {
                         @Override
-                        protected void initChannel(Channel ch) {
+                        protected void initChannel(Channel ch) throws Exception {
                             ch.pipeline().addLast(sslServerCtx.newHandler(ch.alloc()));
-                            if (!serverProduceError) {
-                                ch.pipeline().addLast(new AlertValidationHandler(promise));
-                            }
                             ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
 
                                 @Override
@@ -174,20 +183,48 @@ public class SslErrorTest {
                         }
                     }).bind(0).sync().channel();
 
+            final Promise<Void> promise = group.next().newPromise();
+
             clientChannel = new Bootstrap().group(group)
                     .channel(NioSocketChannel.class)
                     .handler(new ChannelInitializer<Channel>() {
                         @Override
-                        protected void initChannel(Channel ch) {
+                        protected void initChannel(Channel ch) throws Exception {
                             ch.pipeline().addLast(sslClientCtx.newHandler(ch.alloc()));
-                            if (serverProduceError) {
-                                ch.pipeline().addLast(new AlertValidationHandler(promise));
-                            }
                             ch.pipeline().addLast(new ChannelInboundHandlerAdapter() {
-
                                 @Override
                                 public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                                    ctx.close();
+                                    // Unwrap as its wrapped by a DecoderException
+                                    Throwable unwrappedCause = cause.getCause();
+                                    if (unwrappedCause instanceof SSLException) {
+                                        if (exception instanceof TestCertificateException) {
+                                            CertPathValidatorException.Reason reason =
+                                                    ((CertPathValidatorException) exception.getCause()).getReason();
+                                            if (reason == CertPathValidatorException.BasicReason.EXPIRED) {
+                                                verifyException(unwrappedCause, "expired", promise);
+                                            } else if (reason == CertPathValidatorException.BasicReason.NOT_YET_VALID) {
+                                                // BoringSSL uses "expired" in this case while others use "bad"
+                                                if ("BoringSSL".equals(OpenSsl.versionString())) {
+                                                    verifyException(unwrappedCause, "expired", promise);
+                                                } else {
+                                                    verifyException(unwrappedCause, "bad", promise);
+                                                }
+                                            } else if (reason == CertPathValidatorException.BasicReason.REVOKED) {
+                                                verifyException(unwrappedCause, "revoked", promise);
+                                            }
+                                        } else if (exception instanceof CertificateExpiredException) {
+                                            verifyException(unwrappedCause, "expired", promise);
+                                        } else if (exception instanceof CertificateNotYetValidException) {
+                                            // BoringSSL uses "expired" in this case while others use "bad"
+                                            if ("BoringSSL".equals(OpenSsl.versionString())) {
+                                                verifyException(unwrappedCause, "expired", promise);
+                                            } else {
+                                                verifyException(unwrappedCause, "bad", promise);
+                                            }
+                                        } else if (exception instanceof CertificateRevokedException) {
+                                            verifyException(unwrappedCause, "revoked", promise);
+                                        }
+                                    }
                                 }
                             });
                         }
@@ -208,88 +245,11 @@ public class SslErrorTest {
         }
     }
 
-    private final class ExceptionTrustManagerFactory extends SimpleTrustManagerFactory {
-        @Override
-        protected void engineInit(KeyStore keyStore) { }
-        @Override
-        protected void engineInit(ManagerFactoryParameters managerFactoryParameters) { }
-
-        @Override
-        protected TrustManager[] engineGetTrustManagers() {
-            return new TrustManager[] { new X509TrustManager() {
-
-                @Override
-                public void checkClientTrusted(X509Certificate[] x509Certificates, String s)
-                        throws CertificateException {
-                    throw exception;
-                }
-
-                @Override
-                public void checkServerTrusted(X509Certificate[] x509Certificates, String s)
-                        throws CertificateException {
-                    throw exception;
-                }
-
-                @Override
-                public X509Certificate[] getAcceptedIssuers() {
-                    return EmptyArrays.EMPTY_X509_CERTIFICATES;
-                }
-            } };
-        }
-    }
-
-    private final class AlertValidationHandler extends ChannelInboundHandlerAdapter {
-        private final Promise<Void> promise;
-
-        AlertValidationHandler(Promise<Void> promise) {
-            this.promise = promise;
-        }
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            // Unwrap as its wrapped by a DecoderException
-            Throwable unwrappedCause = cause.getCause();
-            if (unwrappedCause instanceof SSLException) {
-                if (exception instanceof TestCertificateException) {
-                    CertPathValidatorException.Reason reason =
-                            ((CertPathValidatorException) exception.getCause()).getReason();
-                    if (reason == CertPathValidatorException.BasicReason.EXPIRED) {
-                        verifyException(unwrappedCause, "expired", promise);
-                    } else if (reason == CertPathValidatorException.BasicReason.NOT_YET_VALID) {
-                        // BoringSSL uses "expired" in this case while others use "bad"
-                        if (OpenSsl.isBoringSSL()) {
-                            verifyException(unwrappedCause, "expired", promise);
-                        } else {
-                            verifyException(unwrappedCause, "bad", promise);
-                        }
-                    } else if (reason == CertPathValidatorException.BasicReason.REVOKED) {
-                        verifyException(unwrappedCause, "revoked", promise);
-                    }
-                } else if (exception instanceof CertificateExpiredException) {
-                    verifyException(unwrappedCause, "expired", promise);
-                } else if (exception instanceof CertificateNotYetValidException) {
-                    // BoringSSL uses "expired" in this case while others use "bad"
-                    if (OpenSsl.isBoringSSL()) {
-                        verifyException(unwrappedCause, "expired", promise);
-                    } else {
-                        verifyException(unwrappedCause, "bad", promise);
-                    }
-                } else if (exception instanceof CertificateRevokedException) {
-                    verifyException(unwrappedCause, "revoked", promise);
-                }
-            }
-        }
-    }
-
     // Its a bit hacky to verify against the message that is part of the exception but there is no other way
     // at the moment as there are no different exceptions for the different alerts.
-    private void verifyException(Throwable cause, String messagePart, Promise<Void> promise) {
+    private static void verifyException(Throwable cause, String messagePart, Promise<Void> promise) {
         String message = cause.getMessage();
-        if (message.toLowerCase(Locale.UK).contains(messagePart.toLowerCase(Locale.UK)) ||
-                // When the error is produced on the client side and the client side uses JDK as provider it will always
-                // use "certificate unknown".
-                !serverProduceError && clientProvider == SslProvider.JDK &&
-                        message.toLowerCase(Locale.UK).contains("unknown")) {
+        if (message.toLowerCase(Locale.UK).contains(messagePart.toLowerCase(Locale.UK))) {
             promise.setSuccess(null);
         } else {
             Throwable error = new AssertionError("message not contains '" + messagePart + "': " + message);
@@ -301,7 +261,7 @@ public class SslErrorTest {
     private static final class TestCertificateException extends CertificateException {
         private static final long serialVersionUID = -5816338303868751410L;
 
-        TestCertificateException(Throwable cause) {
+        public TestCertificateException(Throwable cause) {
             super(cause);
         }
     }

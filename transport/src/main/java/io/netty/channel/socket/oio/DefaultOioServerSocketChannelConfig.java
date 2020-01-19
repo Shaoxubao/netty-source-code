@@ -33,10 +33,7 @@ import static io.netty.channel.ChannelOption.*;
 
 /**
  * Default {@link OioServerSocketChannelConfig} implementation
- *
- * @deprecated use NIO / EPOLL / KQUEUE transport.
  */
-@Deprecated
 public class DefaultOioServerSocketChannelConfig extends DefaultServerSocketChannelConfig implements
         OioServerSocketChannelConfig {
 

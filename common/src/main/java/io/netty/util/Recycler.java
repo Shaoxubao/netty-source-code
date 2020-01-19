@@ -17,7 +17,6 @@
 package io.netty.util;
 
 import io.netty.util.concurrent.FastThreadLocal;
-import io.netty.util.internal.ObjectPool;
 import io.netty.util.internal.SystemPropertyUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
@@ -106,14 +105,14 @@ public abstract class Recycler<T> {
 
     private final int maxCapacityPerThread;
     private final int maxSharedCapacityFactor;
-    private final int interval;
+    private final int ratioMask;
     private final int maxDelayedQueuesPerThread;
 
     private final FastThreadLocal<Stack<T>> threadLocal = new FastThreadLocal<Stack<T>>() {
         @Override
         protected Stack<T> initialValue() {
             return new Stack<T>(Recycler.this, Thread.currentThread(), maxCapacityPerThread, maxSharedCapacityFactor,
-                    interval, maxDelayedQueuesPerThread);
+                    ratioMask, maxDelayedQueuesPerThread);
         }
 
         @Override
@@ -141,7 +140,7 @@ public abstract class Recycler<T> {
 
     protected Recycler(int maxCapacityPerThread, int maxSharedCapacityFactor,
                        int ratio, int maxDelayedQueuesPerThread) {
-        interval = safeFindNextPositivePowerOfTwo(ratio);
+        ratioMask = safeFindNextPositivePowerOfTwo(ratio) - 1;
         if (maxCapacityPerThread <= 0) {
             this.maxCapacityPerThread = 0;
             this.maxSharedCapacityFactor = 1;
@@ -195,16 +194,18 @@ public abstract class Recycler<T> {
 
     protected abstract T newObject(Handle<T> handle);
 
-    public interface Handle<T> extends ObjectPool.Handle<T>  { }
+    public interface Handle<T> {
+        void recycle(T object);
+    }
 
-    private static final class DefaultHandle<T> implements Handle<T> {
-        int lastRecycledId;
-        int recycleId;
+    static final class DefaultHandle<T> implements Handle<T> {
+        private int lastRecycledId;
+        private int recycleId;
 
         boolean hasBeenRecycled;
 
-        Stack<?> stack;
-        Object value;
+        private Stack<?> stack;
+        private Object value;
 
         DefaultHandle(Stack<?> stack) {
             this.stack = stack;
@@ -235,21 +236,22 @@ public abstract class Recycler<T> {
 
     // a queue that makes only moderate guarantees about visibility: items are seen in the correct order,
     // but we aren't absolutely guaranteed to ever see anything at all, thereby keeping the queue cheap to maintain
-    private static final class WeakOrderQueue extends WeakReference<Thread> {
+    private static final class WeakOrderQueue {
 
         static final WeakOrderQueue DUMMY = new WeakOrderQueue();
 
         // Let Link extend AtomicInteger for intrinsics. The Link itself will be used as writerIndex.
         @SuppressWarnings("serial")
         static final class Link extends AtomicInteger {
-            final DefaultHandle<?>[] elements = new DefaultHandle[LINK_CAPACITY];
+            private final DefaultHandle<?>[] elements = new DefaultHandle[LINK_CAPACITY];
 
-            int readIndex;
+            private int readIndex;
             Link next;
         }
 
+        // This act as a place holder for the head Link but also will reclaim space once finalized.
         // Its important this does not hold any reference to either Stack or WeakOrderQueue.
-        private static final class Head {
+        static final class Head {
             private final AtomicInteger availableSharedCapacity;
 
             Link link;
@@ -258,49 +260,41 @@ public abstract class Recycler<T> {
                 this.availableSharedCapacity = availableSharedCapacity;
             }
 
-            /**
-             * Reclaim all used space and also unlink the nodes to prevent GC nepotism.
-             */
-            void reclaimAllSpaceAndUnlink() {
-                Link head = link;
-                link = null;
-                int reclaimSpace = 0;
-                while (head != null) {
-                    reclaimSpace += LINK_CAPACITY;
-                    Link next = head.next;
-                    // Unlink to help GC and guard against GC nepotism.
-                    head.next = null;
-                    head = next;
-                }
-                if (reclaimSpace > 0) {
-                    reclaimSpace(reclaimSpace);
+            /// TODO: In the future when we move to Java9+ we should use java.lang.ref.Cleaner.
+            @Override
+            protected void finalize() throws Throwable {
+                try {
+                    super.finalize();
+                } finally {
+                    Link head = link;
+                    link = null;
+                    while (head != null) {
+                        reclaimSpace(LINK_CAPACITY);
+                        Link next = head.next;
+                        // Unlink to help GC and guard against GC nepotism.
+                        head.next = null;
+                        head = next;
+                    }
                 }
             }
 
-            private void reclaimSpace(int space) {
+            void reclaimSpace(int space) {
+                assert space >= 0;
                 availableSharedCapacity.addAndGet(space);
             }
 
-            void relink(Link link) {
-                reclaimSpace(LINK_CAPACITY);
-                this.link = link;
+            boolean reserveSpace(int space) {
+                return reserveSpace(availableSharedCapacity, space);
             }
 
-            /**
-             * Creates a new {@link} and returns it if we can reserve enough space for it, otherwise it
-             * returns {@code null}.
-             */
-            Link newLink() {
-                return reserveSpaceForLink(availableSharedCapacity) ? new Link() : null;
-            }
-
-            static boolean reserveSpaceForLink(AtomicInteger availableSharedCapacity) {
+            static boolean reserveSpace(AtomicInteger availableSharedCapacity, int space) {
+                assert space >= 0;
                 for (;;) {
                     int available = availableSharedCapacity.get();
-                    if (available < LINK_CAPACITY) {
+                    if (available < space) {
                         return false;
                     }
-                    if (availableSharedCapacity.compareAndSet(available, available - LINK_CAPACITY)) {
+                    if (availableSharedCapacity.compareAndSet(available, available - space)) {
                         return true;
                     }
                 }
@@ -312,18 +306,15 @@ public abstract class Recycler<T> {
         private Link tail;
         // pointer to another queue of delayed items for the same stack
         private WeakOrderQueue next;
+        private final WeakReference<Thread> owner;
         private final int id = ID_GENERATOR.getAndIncrement();
-        private final int interval;
-        private int handleRecycleCount;
 
         private WeakOrderQueue() {
-            super(null);
+            owner = null;
             head = new Head(null);
-            interval = 0;
         }
 
         private WeakOrderQueue(Stack<?> stack, Thread thread) {
-            super(thread);
             tail = new Link();
 
             // Its important that we not store the Stack itself in the WeakOrderQueue as the Stack also is used in
@@ -331,15 +322,10 @@ public abstract class Recycler<T> {
             // Stack itself GCed.
             head = new Head(stack.availableSharedCapacity);
             head.link = tail;
-            interval = stack.interval;
-            handleRecycleCount = interval; // Start at interval so the first one will be recycled.
+            owner = new WeakReference<Thread>(thread);
         }
 
         static WeakOrderQueue newQueue(Stack<?> stack, Thread thread) {
-            // We allocated a Link so reserve the space
-            if (!Head.reserveSpaceForLink(stack.availableSharedCapacity)) {
-                return null;
-            }
             final WeakOrderQueue queue = new WeakOrderQueue(stack, thread);
             // Done outside of the constructor to ensure WeakOrderQueue.this does not escape the constructor and so
             // may be accessed while its still constructed.
@@ -348,43 +334,32 @@ public abstract class Recycler<T> {
             return queue;
         }
 
-        WeakOrderQueue getNext() {
-            return next;
-        }
-
-        void setNext(WeakOrderQueue next) {
+        private void setNext(WeakOrderQueue next) {
             assert next != this;
             this.next = next;
         }
 
-        void reclaimAllSpaceAndUnlink() {
-            head.reclaimAllSpaceAndUnlink();
-            this.next = null;
+        /**
+         * Allocate a new {@link WeakOrderQueue} or return {@code null} if not possible.
+         */
+        static WeakOrderQueue allocate(Stack<?> stack, Thread thread) {
+            // We allocated a Link so reserve the space
+            return Head.reserveSpace(stack.availableSharedCapacity, LINK_CAPACITY)
+                    ? newQueue(stack, thread) : null;
         }
 
         void add(DefaultHandle<?> handle) {
             handle.lastRecycledId = id;
 
-            // While we also enforce the recycling ratio one we transfer objects from the WeakOrderQueue to the Stack
-            // we better should enforce it as well early. Missing to do so may let the WeakOrderQueue grow very fast
-            // without control if the Stack
-            if (handleRecycleCount < interval) {
-                handleRecycleCount++;
-                // Drop the item to prevent recycling to aggressive.
-                return;
-            }
-            handleRecycleCount = 0;
-
             Link tail = this.tail;
             int writeIndex;
             if ((writeIndex = tail.get()) == LINK_CAPACITY) {
-                Link link = head.newLink();
-                if (link == null) {
+                if (!head.reserveSpace(LINK_CAPACITY)) {
                     // Drop it.
                     return;
                 }
                 // We allocate a Link so reserve the space
-                this.tail = tail = tail.next = link;
+                this.tail = tail = tail.next = new Link();
 
                 writeIndex = tail.get();
             }
@@ -411,8 +386,7 @@ public abstract class Recycler<T> {
                 if (head.next == null) {
                     return false;
                 }
-                head = head.next;
-                this.head.relink(head);
+                this.head.link = head = head.next;
             }
 
             final int srcStart = head.readIndex;
@@ -435,7 +409,7 @@ public abstract class Recycler<T> {
                 final DefaultHandle[] dstElems = dst.elements;
                 int newDstSize = dstSize;
                 for (int i = srcStart; i < srcEnd; i++) {
-                    DefaultHandle<?> element = srcElems[i];
+                    DefaultHandle element = srcElems[i];
                     if (element.recycleId == 0) {
                         element.recycleId = element.lastRecycledId;
                     } else if (element.recycleId != element.lastRecycledId) {
@@ -453,7 +427,8 @@ public abstract class Recycler<T> {
 
                 if (srcEnd == LINK_CAPACITY && head.next != null) {
                     // Add capacity back as the Link is GCed.
-                    this.head.relink(head.next);
+                    this.head.reclaimSpace(LINK_CAPACITY);
+                    this.head.link = head.next;
                 }
 
                 head.readIndex = srcEnd;
@@ -469,7 +444,7 @@ public abstract class Recycler<T> {
         }
     }
 
-    private static final class Stack<T> {
+    static final class Stack<T> {
 
         // we keep a queue of per-thread queues, which is appended to once only, each time a new thread other
         // than the stack owner recycles: when we run out of items in our stack we iterate this collection
@@ -485,25 +460,24 @@ public abstract class Recycler<T> {
         // it in a timely manner).
         final WeakReference<Thread> threadRef;
         final AtomicInteger availableSharedCapacity;
-        private final int maxDelayedQueues;
+        final int maxDelayedQueues;
 
         private final int maxCapacity;
-        private final int interval;
-        DefaultHandle<?>[] elements;
-        int size;
-        private int handleRecycleCount;
+        private final int ratioMask;
+        private DefaultHandle<?>[] elements;
+        private int size;
+        private int handleRecycleCount = -1; // Start with -1 so the first one will be recycled.
         private WeakOrderQueue cursor, prev;
         private volatile WeakOrderQueue head;
 
         Stack(Recycler<T> parent, Thread thread, int maxCapacity, int maxSharedCapacityFactor,
-              int interval, int maxDelayedQueues) {
+              int ratioMask, int maxDelayedQueues) {
             this.parent = parent;
             threadRef = new WeakReference<Thread>(thread);
             this.maxCapacity = maxCapacity;
             availableSharedCapacity = new AtomicInteger(max(maxCapacity / maxSharedCapacityFactor, LINK_CAPACITY));
             elements = new DefaultHandle[min(INITIAL_CAPACITY, maxCapacity)];
-            this.interval = interval;
-            handleRecycleCount = interval; // Start at interval so the first one will be recycled.
+            this.ratioMask = ratioMask;
             this.maxDelayedQueues = maxDelayedQueues;
         }
 
@@ -536,28 +510,20 @@ public abstract class Recycler<T> {
                     return null;
                 }
                 size = this.size;
-                if (size <= 0) {
-                    // double check, avoid races
-                    return null;
-                }
             }
             size --;
             DefaultHandle ret = elements[size];
             elements[size] = null;
-            // As we already set the element[size] to null we also need to store the updated size before we do
-            // any validation. Otherwise we may see a null value when later try to pop again without a new element
-            // added before.
-            this.size = size;
-
             if (ret.lastRecycledId != ret.recycleId) {
                 throw new IllegalStateException("recycled multiple times");
             }
             ret.recycleId = 0;
             ret.lastRecycledId = 0;
+            this.size = size;
             return ret;
         }
 
-        private boolean scavenge() {
+        boolean scavenge() {
             // continue an existing scavenge, if any
             if (scavengeSome()) {
                 return true;
@@ -569,7 +535,7 @@ public abstract class Recycler<T> {
             return false;
         }
 
-        private boolean scavengeSome() {
+        boolean scavengeSome() {
             WeakOrderQueue prev;
             WeakOrderQueue cursor = this.cursor;
             if (cursor == null) {
@@ -588,8 +554,8 @@ public abstract class Recycler<T> {
                     success = true;
                     break;
                 }
-                WeakOrderQueue next = cursor.getNext();
-                if (cursor.get() == null) {
+                WeakOrderQueue next = cursor.next;
+                if (cursor.owner.get() == null) {
                     // If the thread associated with the queue is gone, unlink it, after
                     // performing a volatile read to confirm there is no data left to collect.
                     // We never unlink the first queue, as we don't want to synchronize on updating the head.
@@ -604,8 +570,6 @@ public abstract class Recycler<T> {
                     }
 
                     if (prev != null) {
-                        // Ensure we reclaim all space before dropping the WeakOrderQueue to be GC'ed.
-                        cursor.reclaimAllSpaceAndUnlink();
                         prev.setNext(next);
                     }
                 } else {
@@ -654,11 +618,6 @@ public abstract class Recycler<T> {
         }
 
         private void pushLater(DefaultHandle<?> item, Thread thread) {
-            if (maxDelayedQueues == 0) {
-                // We don't support recycling across threads and should just drop the item on the floor.
-                return;
-            }
-
             // we don't want to have a ref to the queue as the value in our weak map
             // so we null it out; to ensure there are no races with restoring it later
             // we impose a memory ordering here (no-op on x86)
@@ -671,7 +630,7 @@ public abstract class Recycler<T> {
                     return;
                 }
                 // Check if we already reached the maximum number of delayed queues and if we can allocate at all.
-                if ((queue = newWeakOrderQueue(thread)) == null) {
+                if ((queue = WeakOrderQueue.allocate(this, thread)) == null) {
                     // drop object
                     return;
                 }
@@ -684,21 +643,12 @@ public abstract class Recycler<T> {
             queue.add(item);
         }
 
-        /**
-         * Allocate a new {@link WeakOrderQueue} or return {@code null} if not possible.
-         */
-        private WeakOrderQueue newWeakOrderQueue(Thread thread) {
-            return WeakOrderQueue.newQueue(this, thread);
-        }
-
         boolean dropHandle(DefaultHandle<?> handle) {
             if (!handle.hasBeenRecycled) {
-                if (handleRecycleCount < interval) {
-                    handleRecycleCount++;
+                if ((++handleRecycleCount & ratioMask) != 0) {
                     // Drop the object.
                     return true;
                 }
-                handleRecycleCount = 0;
                 handle.hasBeenRecycled = true;
             }
             return false;

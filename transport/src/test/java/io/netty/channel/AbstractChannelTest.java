@@ -15,12 +15,8 @@
  */
 package io.netty.channel;
 
-import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.net.SocketAddress;
-import java.nio.channels.ClosedChannelException;
 
-import io.netty.util.NetUtil;
 import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -86,69 +82,6 @@ public class AbstractChannelTest {
         assertTrue(channelId instanceof DefaultChannelId);
     }
 
-    @Test
-    public void testClosedChannelExceptionCarryIOException() throws Exception {
-        final IOException ioException = new IOException();
-        final Channel channel = new TestChannel() {
-            private boolean open = true;
-            private boolean active;
-
-            @Override
-            protected AbstractUnsafe newUnsafe() {
-                return new AbstractUnsafe() {
-                    @Override
-                    public void connect(
-                            SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
-                        active = true;
-                        promise.setSuccess();
-                    }
-                };
-            }
-
-            @Override
-            protected void doClose()  {
-                active = false;
-                open = false;
-            }
-
-            @Override
-            protected void doWrite(ChannelOutboundBuffer in) throws Exception {
-                throw ioException;
-            }
-
-            @Override
-            public boolean isOpen() {
-                return open;
-            }
-
-            @Override
-            public boolean isActive() {
-                return active;
-            }
-        };
-
-        EventLoop loop = new DefaultEventLoop();
-        try {
-            registerChannel(loop, channel);
-            channel.connect(new InetSocketAddress(NetUtil.LOCALHOST, 8888)).sync();
-            assertSame(ioException, channel.writeAndFlush("").await().cause());
-
-            assertClosedChannelException(channel.writeAndFlush(""), ioException);
-            assertClosedChannelException(channel.write(""), ioException);
-            assertClosedChannelException(channel.bind(new InetSocketAddress(NetUtil.LOCALHOST, 8888)), ioException);
-        } finally {
-            channel.close();
-            loop.shutdownGracefully();
-        }
-    }
-
-    private static void assertClosedChannelException(ChannelFuture future, IOException expected)
-            throws InterruptedException {
-        Throwable cause = future.await().cause();
-        assertTrue(cause instanceof ClosedChannelException);
-        assertSame(expected, cause.getCause());
-    }
-
     private static void registerChannel(EventLoop eventLoop, Channel channel) throws Exception {
         DefaultChannelPromise future = new DefaultChannelPromise(channel);
         channel.unsafe().register(eventLoop, future);
@@ -157,16 +90,19 @@ public class AbstractChannelTest {
 
     private static class TestChannel extends AbstractChannel {
         private static final ChannelMetadata TEST_METADATA = new ChannelMetadata(false);
+        private class TestUnsafe extends AbstractUnsafe {
 
-        private final ChannelConfig config = new DefaultChannelConfig(this);
+            @Override
+            public void connect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) { }
+        }
 
-        TestChannel() {
+        public TestChannel() {
             super(null);
         }
 
         @Override
         public ChannelConfig config() {
-            return config;
+            return new DefaultChannelConfig(this);
         }
 
         @Override
@@ -186,12 +122,7 @@ public class AbstractChannelTest {
 
         @Override
         protected AbstractUnsafe newUnsafe() {
-            return new AbstractUnsafe() {
-                @Override
-                public void connect(SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise) {
-                    promise.setFailure(new UnsupportedOperationException());
-                }
-            };
+            return new TestUnsafe();
         }
 
         @Override
@@ -210,16 +141,16 @@ public class AbstractChannelTest {
         }
 
         @Override
-        protected void doBind(SocketAddress localAddress) { }
+        protected void doBind(SocketAddress localAddress) throws Exception { }
 
         @Override
-        protected void doDisconnect() { }
+        protected void doDisconnect() throws Exception { }
 
         @Override
-        protected void doClose() { }
+        protected void doClose() throws Exception { }
 
         @Override
-        protected void doBeginRead() { }
+        protected void doBeginRead() throws Exception { }
 
         @Override
         protected void doWrite(ChannelOutboundBuffer in) throws Exception { }

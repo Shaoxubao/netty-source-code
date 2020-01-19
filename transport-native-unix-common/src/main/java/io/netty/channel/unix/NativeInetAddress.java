@@ -58,13 +58,9 @@ public final class NativeInetAddress {
 
     public static byte[] ipv4MappedIpv6Address(byte[] ipv4) {
         byte[] address = new byte[16];
-        copyIpv4MappedIpv6Address(ipv4, address);
+        System.arraycopy(IPV4_MAPPED_IPV6_PREFIX, 0, address, 0, IPV4_MAPPED_IPV6_PREFIX.length);
+        System.arraycopy(ipv4, 0, address, 12, ipv4.length);
         return address;
-    }
-
-    public static void copyIpv4MappedIpv6Address(byte[] ipv4, byte[] ipv6) {
-        System.arraycopy(IPV4_MAPPED_IPV6_PREFIX, 0, ipv6, 0, IPV4_MAPPED_IPV6_PREFIX.length);
-        System.arraycopy(ipv4, 0, ipv6, 12, ipv4.length);
     }
 
     public static InetSocketAddress address(byte[] addr, int offset, int len) {

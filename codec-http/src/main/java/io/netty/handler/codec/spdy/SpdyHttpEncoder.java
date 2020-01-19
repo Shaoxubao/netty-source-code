@@ -28,7 +28,6 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.AsciiString;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.Iterator;
 import java.util.List;
@@ -145,7 +144,9 @@ public class SpdyHttpEncoder extends MessageToMessageEncoder<HttpObject> {
      * @param validateHeaders    validate the header names and values when adding them to the {@link SpdyHeaders}
      */
     public SpdyHttpEncoder(SpdyVersion version, boolean headersToLowerCase, boolean validateHeaders) {
-        ObjectUtil.checkNotNull(version, "version");
+        if (version == null) {
+            throw new NullPointerException("version");
+        }
         this.headersToLowerCase = headersToLowerCase;
         this.validateHeaders = validateHeaders;
     }

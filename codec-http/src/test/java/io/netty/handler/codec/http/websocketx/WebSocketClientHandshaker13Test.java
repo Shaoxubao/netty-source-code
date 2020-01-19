@@ -15,24 +15,13 @@
  */
 package io.netty.handler.codec.http.websocketx;
 
-import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
 
 import java.net.URI;
 
 public class WebSocketClientHandshaker13Test extends WebSocketClientHandshaker07Test {
-
     @Override
-    protected WebSocketClientHandshaker newHandshaker(URI uri, String subprotocol, HttpHeaders headers,
-                                                      boolean absoluteUpgradeUrl) {
-        return new WebSocketClientHandshaker13(uri, WebSocketVersion.V13, subprotocol, false, headers,
-          1024, true, true, 10000,
-          absoluteUpgradeUrl);
+    protected WebSocketClientHandshaker newHandshaker(URI uri, String subprotocol, HttpHeaders headers) {
+        return new WebSocketClientHandshaker13(uri, WebSocketVersion.V13, subprotocol, false, headers, 1024);
     }
-
-    @Override
-    protected CharSequence getOriginHeaderName() {
-        return HttpHeaderNames.ORIGIN;
-    }
-
 }

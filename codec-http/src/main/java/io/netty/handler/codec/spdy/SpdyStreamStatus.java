@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.spdy;
 
-import io.netty.util.internal.ObjectUtil;
-
 /**
  * The SPDY stream status code and its description.
  */
@@ -141,8 +139,12 @@ public class SpdyStreamStatus implements Comparable<SpdyStreamStatus> {
                     "0 is not a valid status code for a RST_STREAM");
         }
 
-        this.statusPhrase = ObjectUtil.checkNotNull(statusPhrase, "statusPhrase");
+        if (statusPhrase == null) {
+            throw new NullPointerException("statusPhrase");
+        }
+
         this.code = code;
+        this.statusPhrase = statusPhrase;
     }
 
     /**

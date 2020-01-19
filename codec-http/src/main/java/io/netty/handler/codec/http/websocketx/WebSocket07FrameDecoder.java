@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 The Netty Project
+ * Copyright 2012 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License,
  * version 2.0 (the "License"); you may not use this file except in compliance
@@ -71,11 +71,7 @@ public class WebSocket07FrameDecoder extends WebSocket08FrameDecoder {
      *            helps check for denial of services attacks.
      */
     public WebSocket07FrameDecoder(boolean expectMaskedFrames, boolean allowExtensions, int maxFramePayloadLength) {
-        this(WebSocketDecoderConfig.newBuilder()
-            .expectMaskedFrames(expectMaskedFrames)
-            .allowExtensions(allowExtensions)
-            .maxFramePayloadLength(maxFramePayloadLength)
-            .build());
+        this(expectMaskedFrames, allowExtensions, maxFramePayloadLength, false);
     }
 
     /**
@@ -95,21 +91,6 @@ public class WebSocket07FrameDecoder extends WebSocket08FrameDecoder {
      */
     public WebSocket07FrameDecoder(boolean expectMaskedFrames, boolean allowExtensions, int maxFramePayloadLength,
                                    boolean allowMaskMismatch) {
-        this(WebSocketDecoderConfig.newBuilder()
-            .expectMaskedFrames(expectMaskedFrames)
-            .allowExtensions(allowExtensions)
-            .maxFramePayloadLength(maxFramePayloadLength)
-            .allowMaskMismatch(allowMaskMismatch)
-            .build());
-    }
-
-    /**
-     * Constructor
-     *
-     * @param decoderConfig
-     *            Frames decoder configuration.
-     */
-    public WebSocket07FrameDecoder(WebSocketDecoderConfig decoderConfig) {
-        super(decoderConfig);
+        super(expectMaskedFrames, allowExtensions, maxFramePayloadLength, allowMaskMismatch);
     }
 }

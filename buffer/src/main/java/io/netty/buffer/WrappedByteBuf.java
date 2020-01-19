@@ -17,7 +17,6 @@
 package io.netty.buffer;
 
 import io.netty.util.ByteProcessor;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.StringUtil;
 
 import java.io.IOException;
@@ -42,17 +41,15 @@ class WrappedByteBuf extends ByteBuf {
     protected final ByteBuf buf;
 
     protected WrappedByteBuf(ByteBuf buf) {
-        this.buf = ObjectUtil.checkNotNull(buf, "buf");
+        if (buf == null) {
+            throw new NullPointerException("buf");
+        }
+        this.buf = buf;
     }
 
     @Override
     public final boolean hasMemoryAddress() {
         return buf.hasMemoryAddress();
-    }
-
-    @Override
-    public boolean isContiguous() {
-        return buf.isContiguous();
     }
 
     @Override
@@ -152,11 +149,6 @@ class WrappedByteBuf extends ByteBuf {
     @Override
     public final int maxWritableBytes() {
         return buf.maxWritableBytes();
-    }
-
-    @Override
-    public int maxFastWritableBytes() {
-        return buf.maxFastWritableBytes();
     }
 
     @Override
@@ -1040,10 +1032,5 @@ class WrappedByteBuf extends ByteBuf {
     @Override
     public boolean release(int decrement) {
         return buf.release(decrement);
-    }
-
-    @Override
-    final boolean isAccessible() {
-        return buf.isAccessible();
     }
 }

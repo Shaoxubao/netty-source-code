@@ -34,7 +34,6 @@ import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.stream.ChunkedInput;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
 
@@ -311,7 +310,9 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
      *             if the encoding is in error or if the finalize were already done
      */
     public void setBodyHttpDatas(List<InterfaceHttpData> datas) throws ErrorDataEncoderException {
-        ObjectUtil.checkNotNull(datas, "datas");
+        if (datas == null) {
+            throw new NullPointerException("datas");
+        }
         globalBodySize = 0;
         bodyListDatas.clear();
         currentFileUpload = null;
@@ -637,7 +638,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
                         replacement.append("; ")
                                    .append(HttpHeaderValues.FILENAME)
                                    .append("=\"")
-                                   .append(currentFileUpload.getFilename())
+                                   .append(fileUpload.getFilename())
                                    .append('"');
                     }
 
@@ -866,7 +867,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
 
     /**
      *
-     * @return the next ByteBuf to send as an HttpChunk and modifying currentBuffer accordingly
+     * @return the next ByteBuf to send as a HttpChunk and modifying currentBuffer accordingly
      */
     private ByteBuf fillByteBuf() {
         int length = currentBuffer.readableBytes();
@@ -976,11 +977,7 @@ public class HttpPostRequestEncoder implements ChunkedInput<HttpContent> {
         if (buffer.capacity() == 0) {
             currentData = null;
             if (currentBuffer == null) {
-                if (delimiter == null) {
-                    return null;
-                } else {
-                    currentBuffer = delimiter;
-                }
+                currentBuffer = delimiter;
             } else {
                 if (delimiter != null) {
                     currentBuffer = wrappedBuffer(currentBuffer, delimiter);

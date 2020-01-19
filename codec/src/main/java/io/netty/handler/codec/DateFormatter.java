@@ -261,6 +261,10 @@ public final class DateFormatter {
         return false;
     }
 
+    private static boolean matchMonth(String month, CharSequence txt, int tokenStart) {
+        return AsciiString.regionMatchesAscii(month, true, 0, txt, tokenStart, 3);
+    }
+
     private boolean tryParseMonth(CharSequence txt, int tokenStart, int tokenEnd) {
         int len = tokenEnd - tokenStart;
 
@@ -268,33 +272,29 @@ public final class DateFormatter {
             return false;
         }
 
-        char monthChar1 = AsciiString.toLowerCase(txt.charAt(tokenStart));
-        char monthChar2 = AsciiString.toLowerCase(txt.charAt(tokenStart + 1));
-        char monthChar3 = AsciiString.toLowerCase(txt.charAt(tokenStart + 2));
-
-        if (monthChar1 == 'j' && monthChar2 == 'a' && monthChar3 == 'n') {
+        if (matchMonth("Jan", txt, tokenStart)) {
             month = Calendar.JANUARY;
-        } else if (monthChar1 == 'f' && monthChar2 == 'e' && monthChar3 == 'b') {
+        } else if (matchMonth("Feb", txt, tokenStart)) {
             month = Calendar.FEBRUARY;
-        } else if (monthChar1 == 'm' && monthChar2 == 'a' && monthChar3 == 'r') {
+        } else if (matchMonth("Mar", txt, tokenStart)) {
             month = Calendar.MARCH;
-        } else if (monthChar1 == 'a' && monthChar2 == 'p' && monthChar3 == 'r') {
+        } else if (matchMonth("Apr", txt, tokenStart)) {
             month = Calendar.APRIL;
-        } else if (monthChar1 == 'm' && monthChar2 == 'a' && monthChar3 == 'y') {
+        } else if (matchMonth("May", txt, tokenStart)) {
             month = Calendar.MAY;
-        } else if (monthChar1 == 'j' && monthChar2 == 'u' && monthChar3 == 'n') {
+        } else if (matchMonth("Jun", txt, tokenStart)) {
             month = Calendar.JUNE;
-        } else if (monthChar1 == 'j' && monthChar2 == 'u' && monthChar3 == 'l') {
+        } else if (matchMonth("Jul", txt, tokenStart)) {
             month = Calendar.JULY;
-        } else if (monthChar1 == 'a' && monthChar2 == 'u' && monthChar3 == 'g') {
+        } else if (matchMonth("Aug", txt, tokenStart)) {
             month = Calendar.AUGUST;
-        } else if (monthChar1 == 's' && monthChar2 == 'e' && monthChar3 == 'p') {
+        } else if (matchMonth("Sep", txt, tokenStart)) {
             month = Calendar.SEPTEMBER;
-        } else if (monthChar1 == 'o' && monthChar2 == 'c' && monthChar3 == 't') {
+        } else if (matchMonth("Oct", txt, tokenStart)) {
             month = Calendar.OCTOBER;
-        } else if (monthChar1 == 'n' && monthChar2 == 'o' && monthChar3 == 'v') {
+        } else if (matchMonth("Nov", txt, tokenStart)) {
             month = Calendar.NOVEMBER;
-        } else if (monthChar1 == 'd' && monthChar2 == 'e' && monthChar3 == 'c') {
+        } else if (matchMonth("Dec", txt, tokenStart)) {
             month = Calendar.DECEMBER;
         } else {
             return false;

@@ -19,7 +19,7 @@ import static io.netty.resolver.dns.DnsAddressDecoder.decodeAddress;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 import io.netty.channel.EventLoop;
@@ -31,16 +31,13 @@ final class DnsAddressResolveContext extends DnsResolveContext<InetAddress> {
 
     private final DnsCache resolveCache;
     private final AuthoritativeDnsServerCache authoritativeDnsServerCache;
-    private final boolean completeEarlyIfPossible;
 
     DnsAddressResolveContext(DnsNameResolver parent, String hostname, DnsRecord[] additionals,
                              DnsServerAddressStream nameServerAddrs, DnsCache resolveCache,
-                             AuthoritativeDnsServerCache authoritativeDnsServerCache,
-                             boolean completeEarlyIfPossible) {
+                             AuthoritativeDnsServerCache authoritativeDnsServerCache) {
         super(parent, hostname, DnsRecord.CLASS_IN, parent.resolveRecordTypes(), additionals, nameServerAddrs);
         this.resolveCache = resolveCache;
         this.authoritativeDnsServerCache = authoritativeDnsServerCache;
-        this.completeEarlyIfPossible = completeEarlyIfPossible;
     }
 
     @Override
@@ -49,7 +46,7 @@ final class DnsAddressResolveContext extends DnsResolveContext<InetAddress> {
                                                       DnsRecord[] additionals,
                                                       DnsServerAddressStream nameServerAddrs) {
         return new DnsAddressResolveContext(parent, hostname, additionals, nameServerAddrs, resolveCache,
-                authoritativeDnsServerCache, completeEarlyIfPossible);
+                authoritativeDnsServerCache);
     }
 
     @Override
@@ -59,19 +56,27 @@ final class DnsAddressResolveContext extends DnsResolveContext<InetAddress> {
 
     @Override
     List<InetAddress> filterResults(List<InetAddress> unfiltered) {
-        Collections.sort(unfiltered, PreferredAddressTypeComparator.comparator(parent.preferredAddressType()));
-        return unfiltered;
-    }
-
-    @Override
-    boolean isCompleteEarly(InetAddress resolved) {
-        return completeEarlyIfPossible && parent.preferredAddressType().addressType() == resolved.getClass();
-    }
-
-    @Override
-    boolean isDuplicateAllowed() {
-        // We don't want include duplicates to mimic JDK behaviour.
-        return false;
+        final Class<? extends InetAddress> inetAddressType = parent.preferredAddressType().addressType();
+        final int size = unfiltered.size();
+        int numExpected = 0;
+        for (int i = 0; i < size; i++) {
+            InetAddress address = unfiltered.get(i);
+            if (inetAddressType.isInstance(address)) {
+                numExpected++;
+            }
+        }
+        if (numExpected == size || numExpected == 0) {
+            // If all the results are the preferred type, or none of them are, then we don't need to do any filtering.
+            return unfiltered;
+        }
+        List<InetAddress> filtered = new ArrayList<InetAddress>(numExpected);
+        for (int i = 0; i < size; i++) {
+            InetAddress address = unfiltered.get(i);
+            if (inetAddressType.isInstance(address)) {
+                filtered.add(address);
+            }
+        }
+        return filtered;
     }
 
     @Override

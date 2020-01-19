@@ -15,7 +15,6 @@
  */
 package io.netty.handler.traffic;
 
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -175,6 +174,7 @@ public class TrafficCounter {
             if (trafficShapingHandler != null) {
                 trafficShapingHandler.doAccounting(TrafficCounter.this);
             }
+            scheduledFuture = executor.schedule(this, checkInterval.get(), TimeUnit.MILLISECONDS);
         }
     }
 
@@ -192,7 +192,7 @@ public class TrafficCounter {
             monitorActive = true;
             monitor = new TrafficMonitoringTask();
             scheduledFuture =
-                executor.scheduleAtFixedRate(monitor, 0, localCheckInterval, TimeUnit.MILLISECONDS);
+                executor.schedule(monitor, localCheckInterval, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -251,10 +251,13 @@ public class TrafficCounter {
      *            the checkInterval in millisecond between two computations.
      */
     public TrafficCounter(ScheduledExecutorService executor, String name, long checkInterval) {
+        if (name == null) {
+            throw new NullPointerException("name");
+        }
 
-        this.name = ObjectUtil.checkNotNull(name, "name");
         trafficShapingHandler = null;
         this.executor = executor;
+        this.name = name;
 
         init(checkInterval);
     }
@@ -280,10 +283,13 @@ public class TrafficCounter {
         if (trafficShapingHandler == null) {
             throw new IllegalArgumentException("trafficShapingHandler");
         }
+        if (name == null) {
+            throw new NullPointerException("name");
+        }
 
-        this.name = ObjectUtil.checkNotNull(name, "name");
         this.trafficShapingHandler = trafficShapingHandler;
         this.executor = executor;
+        this.name = name;
 
         init(checkInterval);
     }
@@ -311,8 +317,7 @@ public class TrafficCounter {
                 // No more active monitoring
                 lastTime.set(milliSecondFromNano());
             } else {
-                // Restart
-                stop();
+                // Start if necessary
                 start();
             }
         }

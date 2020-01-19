@@ -16,7 +16,6 @@
 package io.netty.buffer;
 
 import io.netty.util.ByteProcessor;
-import io.netty.util.internal.ObjectUtil;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +40,10 @@ public class SwappedByteBuf extends ByteBuf {
     private final ByteOrder order;
 
     public SwappedByteBuf(ByteBuf buf) {
-        this.buf = ObjectUtil.checkNotNull(buf, "buf");
+        if (buf == null) {
+            throw new NullPointerException("buf");
+        }
+        this.buf = buf;
         if (buf.order() == ByteOrder.BIG_ENDIAN) {
             order = ByteOrder.LITTLE_ENDIAN;
         } else {
@@ -56,7 +58,10 @@ public class SwappedByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf order(ByteOrder endianness) {
-        if (ObjectUtil.checkNotNull(endianness, "endianness") == order) {
+        if (endianness == null) {
+            throw new NullPointerException("endianness");
+        }
+        if (endianness == order) {
             return this;
         }
         return buf;
@@ -144,11 +149,6 @@ public class SwappedByteBuf extends ByteBuf {
     @Override
     public int maxWritableBytes() {
         return buf.maxWritableBytes();
-    }
-
-    @Override
-    public int maxFastWritableBytes() {
-        return buf.maxFastWritableBytes();
     }
 
     @Override
@@ -978,11 +978,6 @@ public class SwappedByteBuf extends ByteBuf {
     }
 
     @Override
-    public boolean isContiguous() {
-        return buf.isContiguous();
-    }
-
-    @Override
     public long memoryAddress() {
         return buf.memoryAddress();
     }
@@ -1000,11 +995,6 @@ public class SwappedByteBuf extends ByteBuf {
     @Override
     public int refCnt() {
         return buf.refCnt();
-    }
-
-    @Override
-    final boolean isAccessible() {
-        return buf.isAccessible();
     }
 
     @Override

@@ -12,9 +12,9 @@ services:
     image: netty:default
     depends_on: [runtime-setup]
     volumes:
-      - ~/.ssh:/root/.ssh:delegated
-      - ~/.gnupg:/root/.gnupg:delegated
-      - ..:/code:delegated
+      - ~/.ssh:/root/.ssh
+      - ~/.gnupg:/root/.gnupg
+      - ..:/code
     working_dir: /code
 
   test-leak:
@@ -27,16 +27,13 @@ services:
 
   test-boringssl-static:
     <<: *common
-    command: /bin/bash -cl "./mvnw -P boringssl clean install -Dio.netty.testsuite.badHost=netty.io -Dxml.skip=true"
+    command: /bin/bash -cl "./mvnw clean install -Dio.netty.testsuite.badHost=netty.io -Dtcnative.artifactId=netty-tcnative-boringssl-static"
 
   shell:
     <<: *common
-    environment:
-      - SANOTYPE_USER
-      - SANOTYPE_PASSWORD
     volumes:
-      - ~/.ssh:/root/.ssh:delegated
-      - ~/.gnupg:/root/.gnupg:delegated
-      - ..:/code:delegated
-      - ~/.m2:/root/.m2:delegated
+      - ~/.ssh:/root/.ssh
+      - ~/.gnupg:/root/.gnupg
+      - ..:/code
+      - ~/.m2:/root/.m2
     entrypoint: /bin/bash

@@ -53,31 +53,24 @@ import static io.netty.util.internal.ThrowableUtil.unknownStackTrace;
 
 final class HpackDecoder {
     private static final Http2Exception DECODE_ULE_128_DECOMPRESSION_EXCEPTION = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - decompression failure",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class,
+            connectionError(COMPRESSION_ERROR, "HPACK - decompression failure"), HpackDecoder.class,
             "decodeULE128(..)");
     private static final Http2Exception DECODE_ULE_128_TO_LONG_DECOMPRESSION_EXCEPTION = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - long overflow",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "decodeULE128(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - long overflow"), HpackDecoder.class, "decodeULE128(..)");
     private static final Http2Exception DECODE_ULE_128_TO_INT_DECOMPRESSION_EXCEPTION = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - int overflow",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "decodeULE128ToInt(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - int overflow"), HpackDecoder.class, "decodeULE128ToInt(..)");
     private static final Http2Exception DECODE_ILLEGAL_INDEX_VALUE = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - illegal index value",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "decode(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - illegal index value"), HpackDecoder.class, "decode(..)");
     private static final Http2Exception INDEX_HEADER_ILLEGAL_INDEX_VALUE = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - illegal index value",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "indexHeader(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - illegal index value"), HpackDecoder.class, "indexHeader(..)");
     private static final Http2Exception READ_NAME_ILLEGAL_INDEX_VALUE = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - illegal index value",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "readName(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - illegal index value"), HpackDecoder.class, "readName(..)");
     private static final Http2Exception INVALID_MAX_DYNAMIC_TABLE_SIZE = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - invalid max dynamic table size",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class,
+            connectionError(COMPRESSION_ERROR, "HPACK - invalid max dynamic table size"), HpackDecoder.class,
             "setDynamicTableSize(..)");
     private static final Http2Exception MAX_DYNAMIC_TABLE_SIZE_CHANGE_REQUIRED = unknownStackTrace(
-            Http2Exception.newStatic(COMPRESSION_ERROR, "HPACK - max dynamic table size change required",
-                    Http2Exception.ShutdownHint.HARD_SHUTDOWN), HpackDecoder.class, "decode(..)");
+            connectionError(COMPRESSION_ERROR, "HPACK - max dynamic table size change required"), HpackDecoder.class,
+            "decode(..)");
     private static final byte READ_HEADER_REPRESENTATION = 0;
     private static final byte READ_MAX_DYNAMIC_TABLE_SIZE = 1;
     private static final byte READ_INDEXED_HEADER = 2;
@@ -89,8 +82,8 @@ final class HpackDecoder {
     private static final byte READ_LITERAL_HEADER_VALUE_LENGTH = 8;
     private static final byte READ_LITERAL_HEADER_VALUE = 9;
 
-    private final HpackHuffmanDecoder huffmanDecoder = new HpackHuffmanDecoder();
     private final HpackDynamicTable hpackDynamicTable;
+    private final HpackHuffmanDecoder hpackHuffmanDecoder;
     private long maxHeaderListSize;
     private long maxDynamicTableSize;
     private long encoderMaxDynamicTableSize;
@@ -102,21 +95,23 @@ final class HpackDecoder {
      *  This is because <a href="https://tools.ietf.org/html/rfc7540#section-6.5.1">SETTINGS_MAX_HEADER_LIST_SIZE</a>
      *  allows a lower than advertised limit from being enforced, and the default limit is unlimited
      *  (which is dangerous).
+     * @param initialHuffmanDecodeCapacity Size of an intermediate buffer used during huffman decode.
      */
-    HpackDecoder(long maxHeaderListSize) {
-        this(maxHeaderListSize, DEFAULT_HEADER_TABLE_SIZE);
+    HpackDecoder(long maxHeaderListSize, int initialHuffmanDecodeCapacity) {
+        this(maxHeaderListSize, initialHuffmanDecodeCapacity, DEFAULT_HEADER_TABLE_SIZE);
     }
 
     /**
      * Exposed Used for testing only! Default values used in the initial settings frame are overridden intentionally
      * for testing but violate the RFC if used outside the scope of testing.
      */
-    HpackDecoder(long maxHeaderListSize, int maxHeaderTableSize) {
+    HpackDecoder(long maxHeaderListSize, int initialHuffmanDecodeCapacity, int maxHeaderTableSize) {
         this.maxHeaderListSize = checkPositive(maxHeaderListSize, "maxHeaderListSize");
 
         maxDynamicTableSize = encoderMaxDynamicTableSize = maxHeaderTableSize;
         maxDynamicTableSizeChangeRequired = false;
         hpackDynamicTable = new HpackDynamicTable(maxHeaderTableSize);
+        hpackHuffmanDecoder = new HpackHuffmanDecoder(initialHuffmanDecodeCapacity);
     }
 
     /**
@@ -446,7 +441,7 @@ final class HpackDecoder {
 
     private CharSequence readStringLiteral(ByteBuf in, int length, boolean huffmanEncoded) throws Http2Exception {
         if (huffmanEncoded) {
-            return huffmanDecoder.decode(in, length);
+            return hpackHuffmanDecoder.decode(in, length);
         }
         byte[] buf = new byte[length];
         in.readBytes(buf);
@@ -533,7 +528,7 @@ final class HpackDecoder {
         private HeaderType previousType;
         private Http2Exception validationException;
 
-        Http2HeadersSink(int streamId, Http2Headers headers, long maxHeaderListSize, boolean validate) {
+        public Http2HeadersSink(int streamId, Http2Headers headers, long maxHeaderListSize, boolean validate) {
             this.headers = headers;
             this.maxHeaderListSize = maxHeaderListSize;
             this.streamId = streamId;

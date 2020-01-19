@@ -20,6 +20,8 @@ import io.netty.util.concurrent.GenericFutureListener;
 import org.junit.Test;
 import org.mockito.Mockito;
 
+import static org.junit.Assert.*;
+
 public class DelegatingChannelPromiseNotifierTest {
     @Test
     public void varargsNotifiersAllowed() {

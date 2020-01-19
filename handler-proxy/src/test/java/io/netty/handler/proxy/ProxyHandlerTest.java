@@ -431,9 +431,7 @@ public class ProxyHandlerTest {
 
     private final TestItem testItem;
 
-    public ProxyHandlerTest(TestItem testItem) {
-        this.testItem = testItem;
-    }
+    public ProxyHandlerTest(TestItem testItem) { this.testItem = testItem; }
 
     @Before
     public void clearServerExceptions() throws Exception {

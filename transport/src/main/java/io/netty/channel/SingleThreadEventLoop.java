@@ -59,13 +59,6 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
         tailTasks = newTaskQueue(maxPendingTasks);
     }
 
-    protected SingleThreadEventLoop(EventLoopGroup parent, Executor executor,
-                                    boolean addTaskWakesUp, Queue<Runnable> taskQueue, Queue<Runnable> tailTaskQueue,
-                                    RejectedExecutionHandler rejectedExecutionHandler) {
-        super(parent, executor, addTaskWakesUp, taskQueue, rejectedExecutionHandler);
-        tailTasks = ObjectUtil.checkNotNull(tailTaskQueue, "tailTaskQueue");
-    }
-
     @Override
     public EventLoopGroup parent() {
         return (EventLoopGroup) super.parent();
@@ -78,15 +71,12 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
 
     @Override
     public ChannelFuture register(Channel channel) {
-        // 实例化了一个 Promise，将当前 channel 带了进去
         return register(new DefaultChannelPromise(channel, this));
     }
 
     @Override
     public ChannelFuture register(final ChannelPromise promise) {
         ObjectUtil.checkNotNull(promise, "promise");
-
-        // promise 关联了 channel，channel 持有 Unsafe 实例，register 操作就封装在 Unsafe 中
         promise.channel().unsafe().register(this, promise);
         return promise;
     }
@@ -94,8 +84,13 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
     @Deprecated
     @Override
     public ChannelFuture register(final Channel channel, final ChannelPromise promise) {
-        ObjectUtil.checkNotNull(promise, "promise");
-        ObjectUtil.checkNotNull(channel, "channel");
+        if (channel == null) {
+            throw new NullPointerException("channel");
+        }
+        if (promise == null) {
+            throw new NullPointerException("promise");
+        }
+
         channel.unsafe().register(this, promise);
         return promise;
     }
@@ -116,7 +111,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
             reject(task);
         }
 
-        if (!(task instanceof LazyRunnable) && wakesUpForTask(task)) {
+        if (wakesUpForTask(task)) {
             wakeup(inEventLoop());
         }
     }
@@ -131,6 +126,11 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
     @UnstableApi
     final boolean removeAfterEventLoopIterationTask(Runnable task) {
         return tailTasks.remove(ObjectUtil.checkNotNull(task, "task"));
+    }
+
+    @Override
+    protected boolean wakesUpForTask(Runnable task) {
+        return !(task instanceof NonWakeupRunnable);
     }
 
     @Override
@@ -149,12 +149,7 @@ public abstract class SingleThreadEventLoop extends SingleThreadEventExecutor im
     }
 
     /**
-     * Returns the number of {@link Channel}s registered with this {@link EventLoop} or {@code -1}
-     * if operation is not supported. The returned value is not guaranteed to be exact accurate and
-     * should be viewed as a best effort.
+     * Marker interface for {@link Runnable} that will not trigger an {@link #wakeup(boolean)} in all cases.
      */
-    @UnstableApi
-    public int registeredChannels() {
-        return -1;
-    }
+    interface NonWakeupRunnable extends Runnable { }
 }

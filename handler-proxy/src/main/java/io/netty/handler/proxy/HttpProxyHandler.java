@@ -34,7 +34,6 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.AsciiString;
 import io.netty.util.CharsetUtil;
-import io.netty.util.internal.ObjectUtil;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -48,10 +47,9 @@ public final class HttpProxyHandler extends ProxyHandler {
     private final String username;
     private final String password;
     private final CharSequence authorization;
-    private final HttpHeaders outboundHeaders;
     private final boolean ignoreDefaultPortsInConnectHostHeader;
     private HttpResponseStatus status;
-    private HttpHeaders inboundHeaders;
+    private HttpHeaders headers;
 
     public HttpProxyHandler(SocketAddress proxyAddress) {
         this(proxyAddress, null);
@@ -68,7 +66,7 @@ public final class HttpProxyHandler extends ProxyHandler {
         username = null;
         password = null;
         authorization = null;
-        this.outboundHeaders = headers;
+        this.headers = headers;
         this.ignoreDefaultPortsInConnectHostHeader = ignoreDefaultPortsInConnectHostHeader;
     }
 
@@ -87,8 +85,14 @@ public final class HttpProxyHandler extends ProxyHandler {
                             HttpHeaders headers,
                             boolean ignoreDefaultPortsInConnectHostHeader) {
         super(proxyAddress);
-        this.username = ObjectUtil.checkNotNull(username, "username");
-        this.password = ObjectUtil.checkNotNull(password, "password");
+        if (username == null) {
+            throw new NullPointerException("username");
+        }
+        if (password == null) {
+            throw new NullPointerException("password");
+        }
+        this.username = username;
+        this.password = password;
 
         ByteBuf authz = Unpooled.copiedBuffer(username + ':' + password, CharsetUtil.UTF_8);
         ByteBuf authzBase64 = Base64.encode(authz, false);
@@ -98,7 +102,7 @@ public final class HttpProxyHandler extends ProxyHandler {
         authz.release();
         authzBase64.release();
 
-        this.outboundHeaders = headers;
+        this.headers = headers;
         this.ignoreDefaultPortsInConnectHostHeader = ignoreDefaultPortsInConnectHostHeader;
     }
 
@@ -159,8 +163,8 @@ public final class HttpProxyHandler extends ProxyHandler {
             req.headers().set(HttpHeaderNames.PROXY_AUTHORIZATION, authorization);
         }
 
-        if (outboundHeaders != null) {
-            req.headers().add(outboundHeaders);
+        if (headers != null) {
+            req.headers().add(headers);
         }
 
         return req;
@@ -170,48 +174,21 @@ public final class HttpProxyHandler extends ProxyHandler {
     protected boolean handleResponse(ChannelHandlerContext ctx, Object response) throws Exception {
         if (response instanceof HttpResponse) {
             if (status != null) {
-                throw new HttpProxyConnectException(exceptionMessage("too many responses"), /*headers=*/ null);
+                throw new ProxyConnectException(exceptionMessage("too many responses"));
             }
-            HttpResponse res = (HttpResponse) response;
-            status = res.status();
-            inboundHeaders = res.headers();
+            status = ((HttpResponse) response).status();
         }
 
         boolean finished = response instanceof LastHttpContent;
         if (finished) {
             if (status == null) {
-                throw new HttpProxyConnectException(exceptionMessage("missing response"), inboundHeaders);
+                throw new ProxyConnectException(exceptionMessage("missing response"));
             }
             if (status.code() != 200) {
-                throw new HttpProxyConnectException(exceptionMessage("status: " + status), inboundHeaders);
+                throw new ProxyConnectException(exceptionMessage("status: " + status));
             }
         }
 
         return finished;
-    }
-
-    /**
-     * Specific case of a connection failure, which may include headers from the proxy.
-     */
-    public static final class HttpProxyConnectException extends ProxyConnectException {
-        private static final long serialVersionUID = -8824334609292146066L;
-
-        private final HttpHeaders headers;
-
-        /**
-         * @param message The failure message.
-         * @param headers Header associated with the connection failure.  May be {@code null}.
-         */
-        public HttpProxyConnectException(String message, HttpHeaders headers) {
-            super(message);
-            this.headers = headers;
-        }
-
-        /**
-         * Returns headers, if any.  May be {@code null}.
-         */
-        public HttpHeaders headers() {
-            return headers;
-        }
     }
 }

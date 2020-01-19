@@ -15,8 +15,6 @@
 
 package io.netty.handler.codec.http2;
 
-import io.netty.util.internal.PlatformDependent;
-import io.netty.util.internal.SuppressJava6Requirement;
 import io.netty.util.internal.UnstableApi;
 
 import java.util.ArrayList;
@@ -64,22 +62,6 @@ public class Http2Exception extends Exception {
         this.shutdownHint = checkNotNull(shutdownHint, "shutdownHint");
     }
 
-    static Http2Exception newStatic(Http2Error error, String message, ShutdownHint shutdownHint) {
-        if (PlatformDependent.javaVersion() >= 7) {
-            return new Http2Exception(error, message, shutdownHint, true);
-        }
-        return new Http2Exception(error, message, shutdownHint);
-    }
-
-    @SuppressJava6Requirement(reason = "uses Java 7+ Exception.<init>(String, Throwable, boolean, boolean)" +
-            " but is guarded by version checks")
-    private Http2Exception(Http2Error error, String message, ShutdownHint shutdownHint, boolean shared) {
-        super(message, null, false, true);
-        assert shared;
-        this.error = checkNotNull(error, "error");
-        this.shutdownHint = checkNotNull(shutdownHint, "shutdownHint");
-    }
-
     public Http2Error error() {
         return error;
     }
@@ -97,7 +79,7 @@ public class Http2Exception extends Exception {
      * @param error The type of error as defined by the HTTP/2 specification.
      * @param fmt String with the content and format for the additional debug data.
      * @param args Objects which fit into the format defined by {@code fmt}.
-     * @return An exception which can be translated into an HTTP/2 error.
+     * @return An exception which can be translated into a HTTP/2 error.
      */
     public static Http2Exception connectionError(Http2Error error, String fmt, Object... args) {
         return new Http2Exception(error, String.format(fmt, args));
@@ -110,7 +92,7 @@ public class Http2Exception extends Exception {
      * @param cause The object which caused the error.
      * @param fmt String with the content and format for the additional debug data.
      * @param args Objects which fit into the format defined by {@code fmt}.
-     * @return An exception which can be translated into an HTTP/2 error.
+     * @return An exception which can be translated into a HTTP/2 error.
      */
     public static Http2Exception connectionError(Http2Error error, Throwable cause,
             String fmt, Object... args) {
@@ -123,7 +105,7 @@ public class Http2Exception extends Exception {
      * @param error The type of error as defined by the HTTP/2 specification.
      * @param fmt String with the content and format for the additional debug data.
      * @param args Objects which fit into the format defined by {@code fmt}.
-     * @return An exception which can be translated into an HTTP/2 error.
+     * @return An exception which can be translated into a HTTP/2 error.
      */
     public static Http2Exception closedStreamError(Http2Error error, String fmt, Object... args) {
         return new ClosedStreamCreationException(error, String.format(fmt, args));
@@ -212,7 +194,7 @@ public class Http2Exception extends Exception {
     /**
      * Provides a hint as to if shutdown is justified, what type of shutdown should be executed.
      */
-    public enum ShutdownHint {
+    public static enum ShutdownHint {
         /**
          * Do not shutdown the underlying channel.
          */
@@ -225,7 +207,7 @@ public class Http2Exception extends Exception {
         /**
          * Close the channel immediately after a {@code GOAWAY} is sent.
          */
-        HARD_SHUTDOWN
+        HARD_SHUTDOWN;
     }
 
     /**

@@ -16,7 +16,6 @@
 package io.netty.handler.codec.rtsp;
 
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,62 +38,62 @@ public final class RtspMethods {
      * The DESCRIBE getMethod retrieves the description of a presentation or
      * media object identified by the request URL from a server.
      */
-    public static final HttpMethod DESCRIBE = HttpMethod.valueOf("DESCRIBE");
+    public static final HttpMethod DESCRIBE = new HttpMethod("DESCRIBE");
 
     /**
      * The ANNOUNCE posts the description of a presentation or media object
      * identified by the request URL to a server, or updates the client-side
      * session description in real-time.
      */
-    public static final HttpMethod ANNOUNCE = HttpMethod.valueOf("ANNOUNCE");
+    public static final HttpMethod ANNOUNCE = new HttpMethod("ANNOUNCE");
 
     /**
      * The SETUP request for a URI specifies the transport mechanism to be
      * used for the streamed media.
      */
-    public static final HttpMethod SETUP = HttpMethod.valueOf("SETUP");
+    public static final HttpMethod SETUP = new HttpMethod("SETUP");
 
     /**
      * The PLAY getMethod tells the server to start sending data via the
      * mechanism specified in SETUP.
      */
-    public static final HttpMethod PLAY = HttpMethod.valueOf("PLAY");
+    public static final HttpMethod PLAY = new HttpMethod("PLAY");
 
     /**
      * The PAUSE request causes the stream delivery to be interrupted
      * (halted) temporarily.
      */
-    public static final HttpMethod PAUSE = HttpMethod.valueOf("PAUSE");
+    public static final HttpMethod PAUSE = new HttpMethod("PAUSE");
 
     /**
      * The TEARDOWN request stops the stream delivery for the given URI,
      * freeing the resources associated with it.
      */
-    public static final HttpMethod TEARDOWN = HttpMethod.valueOf("TEARDOWN");
+    public static final HttpMethod TEARDOWN = new HttpMethod("TEARDOWN");
 
     /**
      * The GET_PARAMETER request retrieves the value of a parameter of a
      * presentation or stream specified in the URI.
      */
-    public static final HttpMethod GET_PARAMETER = HttpMethod.valueOf("GET_PARAMETER");
+    public static final HttpMethod GET_PARAMETER = new HttpMethod("GET_PARAMETER");
 
     /**
      * The SET_PARAMETER requests to set the value of a parameter for a
      * presentation or stream specified by the URI.
      */
-    public static final HttpMethod SET_PARAMETER = HttpMethod.valueOf("SET_PARAMETER");
+    public static final HttpMethod SET_PARAMETER = new HttpMethod("SET_PARAMETER");
 
     /**
      * The REDIRECT request informs the client that it must connect to another
      * server location.
      */
-    public static final HttpMethod REDIRECT = HttpMethod.valueOf("REDIRECT");
+    public static final HttpMethod REDIRECT = new HttpMethod("REDIRECT");
 
     /**
      * The RECORD getMethod initiates recording a range of media data according to
      * the presentation description.
      */
-    public static final HttpMethod RECORD = HttpMethod.valueOf("RECORD");
+    public static final HttpMethod RECORD = new HttpMethod("RECORD");
 
     private static final Map<String, HttpMethod> methodMap = new HashMap<String, HttpMethod>();
 
@@ -118,7 +117,9 @@ public final class RtspMethods {
      * will be returned.  Otherwise, a new instance will be returned.
      */
     public static HttpMethod valueOf(String name) {
-        ObjectUtil.checkNotNull(name, "name");
+        if (name == null) {
+            throw new NullPointerException("name");
+        }
 
         name = name.trim().toUpperCase();
         if (name.isEmpty()) {
@@ -129,7 +130,7 @@ public final class RtspMethods {
         if (result != null) {
             return result;
         } else {
-            return HttpMethod.valueOf(name);
+            return new HttpMethod(name);
         }
     }
 

@@ -45,7 +45,7 @@ public abstract class EmbeddedChannelHandlerContext implements ChannelHandlerCon
         this.alloc = checkNotNull(alloc, "alloc");
         this.channel = checkNotNull(channel, "channel");
         this.handler = checkNotNull(handler, "handler");
-        this.eventLoop = checkNotNull(channel.eventLoop(), "eventLoop");
+        eventLoop = checkNotNull(channel.eventLoop(), "eventLoop");
     }
 
     protected abstract void handleException(Throwable t);

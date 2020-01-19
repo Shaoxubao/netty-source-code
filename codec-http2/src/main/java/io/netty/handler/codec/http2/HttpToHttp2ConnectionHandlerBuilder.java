@@ -80,14 +80,8 @@ public final class HttpToHttp2ConnectionHandlerBuilder extends
     }
 
     @Override
-    @Deprecated
     public HttpToHttp2ConnectionHandlerBuilder initialHuffmanDecodeCapacity(int initialHuffmanDecodeCapacity) {
         return super.initialHuffmanDecodeCapacity(initialHuffmanDecodeCapacity);
-    }
-
-    @Override
-    public HttpToHttp2ConnectionHandlerBuilder decoupleCloseAndGoAway(boolean decoupleCloseAndGoAway) {
-        return super.decoupleCloseAndGoAway(decoupleCloseAndGoAway);
     }
 
     @Override
@@ -98,7 +92,6 @@ public final class HttpToHttp2ConnectionHandlerBuilder extends
     @Override
     protected HttpToHttp2ConnectionHandler build(Http2ConnectionDecoder decoder, Http2ConnectionEncoder encoder,
                                                  Http2Settings initialSettings) {
-        return new HttpToHttp2ConnectionHandler(decoder, encoder, initialSettings, isValidateHeaders(),
-                decoupleCloseAndGoAway());
+        return new HttpToHttp2ConnectionHandler(decoder, encoder, initialSettings, isValidateHeaders());
     }
 }

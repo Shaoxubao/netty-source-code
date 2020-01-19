@@ -19,27 +19,21 @@
 #include <errno.h>
 #include "netty_unix_util.h"
 
-static const uint64_t NETTY_BILLION = 1000000000L;
-
 #ifdef NETTY_USE_MACH_INSTEAD_OF_CLOCK
 
 #include <mach/mach.h>
 #include <mach/mach_time.h>
+static const uint64_t NETTY_BILLION = 1000000000L;
 
 #endif /* NETTY_USE_MACH_INSTEAD_OF_CLOCK */
 
 char* netty_unix_util_prepend(const char* prefix, const char* str) {
-    char* result = NULL;
     if (prefix == NULL) {
-        if ((result = (char*) malloc(sizeof(char) * (strlen(str) + 1))) == NULL) {
-            return NULL;
-        }
+        char* result = (char*) malloc(sizeof(char) * (strlen(str) + 1));
         strcpy(result, str);
         return result;
     }
-    if ((result = (char*) malloc(sizeof(char) * (strlen(prefix) + strlen(str) + 1))) == NULL) {
-        return NULL;
-    }
+    char* result = (char*) malloc(sizeof(char) * (strlen(prefix) + strlen(str) + 1));
     strcpy(result, prefix);
     strcat(result, str);
     return result;
@@ -87,10 +81,7 @@ char* netty_unix_util_parse_package_prefix(const char* libraryPathName, const ch
     // packagePrefix length is > 0
     // Make a copy so we can modify the value without impacting libraryPathName.
     size_t packagePrefixLen = packageNameEnd - packagePrefix;
-    if ((packagePrefix = strndup(packagePrefix, packagePrefixLen)) == NULL) {
-        *status = JNI_ERR;
-        return NULL;
-    }
+    packagePrefix = strndup(packagePrefix, packagePrefixLen);
     // Make sure the packagePrefix is in the correct format for the JNI functions it will be used with.
     char* temp = packagePrefix;
     packageNameEnd = packagePrefix + packagePrefixLen;
@@ -103,34 +94,13 @@ char* netty_unix_util_parse_package_prefix(const char* libraryPathName, const ch
     // Make sure packagePrefix is terminated with the '/' JNI package separator.
     if(*(--temp) != '/') {
         temp = packagePrefix;
-        if ((packagePrefix = netty_unix_util_prepend(packagePrefix, "/")) == NULL) {
-            *status = JNI_ERR;
-        }
+        packagePrefix = netty_unix_util_prepend(packagePrefix, "/");
         free(temp);
     }
     return packagePrefix;
 }
 
 // util methods
-uint64_t netty_unix_util_timespec_elapsed_ns(const struct timespec* begin, const struct timespec* end) {
-  return NETTY_BILLION * (end->tv_sec - begin->tv_sec) + (end->tv_nsec - begin->tv_nsec);
-}
-
-jboolean netty_unix_util_timespec_subtract_ns(struct timespec* ts, uint64_t nanos) {
-  const uint64_t seconds = nanos / NETTY_BILLION;
-  nanos -= seconds * NETTY_BILLION;
-  // If there are too many nanos we steal from seconds to avoid underflow on nanos. This way we
-  // only have to worry about underflow on tv_sec.
-  if (nanos > ts->tv_nsec) {
-    --(ts->tv_sec);
-    ts->tv_nsec += NETTY_BILLION;
-  }
-  const jboolean underflow = ts->tv_sec < seconds;
-  ts->tv_sec -= seconds;
-  ts->tv_nsec -= nanos;
-  return underflow;
-}
-
 int netty_unix_util_clock_gettime(clockid_t clockId, struct timespec* tp) {
 #ifdef NETTY_USE_MACH_INSTEAD_OF_CLOCK
   uint64_t timeNs;
@@ -195,34 +165,13 @@ jboolean netty_unix_util_initialize_wait_clock(clockid_t* clockId) {
 }
 
 jint netty_unix_util_register_natives(JNIEnv* env, const char* packagePrefix, const char* className, const JNINativeMethod* methods, jint numMethods) {
-    char* nettyClassName = NULL;
-    int ret = JNI_ERR;
-    NETTY_PREPEND(packagePrefix, className, nettyClassName, done);
-   
+    char* nettyClassName = netty_unix_util_prepend(packagePrefix, className);
     jclass nativeCls = (*env)->FindClass(env, nettyClassName);
-    if (nativeCls == NULL) {
-        goto done;
-    }
-
-    ret = (*env)->RegisterNatives(env, nativeCls, methods, numMethods);
-done:
     free(nettyClassName);
-    return ret;
-}
-
-void netty_unix_util_free_dynamic_methods_table(JNINativeMethod* dynamicMethods, jint fixedMethodTableSize, jint fullMethodTableSize) {
-    if (dynamicMethods != NULL) {
-        jint i = fixedMethodTableSize;
-        for (; i < fullMethodTableSize; ++i) {
-            free(dynamicMethods[i].signature);
-        }
-        free(dynamicMethods);
+    nettyClassName = NULL;
+    if (nativeCls == NULL) {
+        return JNI_ERR;
     }
-}
 
-void netty_unix_util_free_dynamic_name(char** dynamicName) {
-    if (dynamicName != NULL && *dynamicName != NULL) {
-        free(*dynamicName);
-        *dynamicName = NULL;
-    }
+    return (*env)->RegisterNatives(env, nativeCls, methods, numMethods);
 }

@@ -19,7 +19,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelException;
 import io.netty.handler.codec.http.HttpConstants;
 import io.netty.util.AbstractReferenceCounted;
-import io.netty.util.internal.ObjectUtil;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -41,7 +40,9 @@ public abstract class AbstractHttpData extends AbstractReferenceCounted implemen
     private long maxSize = DefaultHttpDataFactory.MAXSIZE;
 
     protected AbstractHttpData(String name, Charset charset, long size) {
-        ObjectUtil.checkNotNull(name, "name");
+        if (name == null) {
+            throw new NullPointerException("name");
+        }
 
         name = REPLACE_PATTERN.matcher(name).replaceAll(" ");
         name = STRIP_PATTERN.matcher(name).replaceAll("");
@@ -58,9 +59,7 @@ public abstract class AbstractHttpData extends AbstractReferenceCounted implemen
     }
 
     @Override
-    public long getMaxSize() {
-        return maxSize;
-    }
+    public long getMaxSize() { return maxSize; }
 
     @Override
     public void setMaxSize(long maxSize) {
@@ -95,7 +94,10 @@ public abstract class AbstractHttpData extends AbstractReferenceCounted implemen
 
     @Override
     public void setCharset(Charset charset) {
-        this.charset = ObjectUtil.checkNotNull(charset, "charset");
+        if (charset == null) {
+            throw new NullPointerException("charset");
+        }
+        this.charset = charset;
     }
 
     @Override

@@ -41,10 +41,12 @@ import static io.netty.channel.kqueue.KQueueChannelOption.TCP_NOPUSH;
 
 @UnstableApi
 public final class KQueueSocketChannelConfig extends KQueueChannelConfig implements SocketChannelConfig {
+    private final KQueueSocketChannel channel;
     private volatile boolean allowHalfClosure;
 
     KQueueSocketChannelConfig(KQueueSocketChannel channel) {
         super(channel);
+        this.channel = channel;
         if (PlatformDependent.canEnableTcpNoDelayByDefault()) {
             setTcpNoDelay(true);
         }
@@ -129,7 +131,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public int getReceiveBufferSize() {
         try {
-            return ((KQueueSocketChannel) channel).socket.getReceiveBufferSize();
+            return channel.socket.getReceiveBufferSize();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -138,7 +140,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public int getSendBufferSize() {
         try {
-            return ((KQueueSocketChannel) channel).socket.getSendBufferSize();
+            return channel.socket.getSendBufferSize();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -147,7 +149,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public int getSoLinger() {
         try {
-            return ((KQueueSocketChannel) channel).socket.getSoLinger();
+            return channel.socket.getSoLinger();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -156,7 +158,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public int getTrafficClass() {
         try {
-            return ((KQueueSocketChannel) channel).socket.getTrafficClass();
+            return channel.socket.getTrafficClass();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -165,7 +167,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public boolean isKeepAlive() {
         try {
-            return ((KQueueSocketChannel) channel).socket.isKeepAlive();
+            return channel.socket.isKeepAlive();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -174,7 +176,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public boolean isReuseAddress() {
         try {
-            return ((KQueueSocketChannel) channel).socket.isReuseAddress();
+            return channel.socket.isReuseAddress();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -183,7 +185,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public boolean isTcpNoDelay() {
         try {
-            return ((KQueueSocketChannel) channel).socket.isTcpNoDelay();
+            return channel.socket.isTcpNoDelay();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -191,7 +193,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
 
     public int getSndLowAt() {
         try {
-            return ((KQueueSocketChannel) channel).socket.getSndLowAt();
+            return channel.socket.getSndLowAt();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -199,7 +201,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
 
     public void setSndLowAt(int sndLowAt)  {
         try {
-            ((KQueueSocketChannel) channel).socket.setSndLowAt(sndLowAt);
+            channel.socket.setSndLowAt(sndLowAt);
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -207,7 +209,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
 
     public boolean isTcpNoPush() {
         try {
-            return ((KQueueSocketChannel) channel).socket.isTcpNoPush();
+            return channel.socket.isTcpNoPush();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -215,7 +217,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
 
     public void setTcpNoPush(boolean tcpNoPush)  {
         try {
-            ((KQueueSocketChannel) channel).socket.setTcpNoPush(tcpNoPush);
+            channel.socket.setTcpNoPush(tcpNoPush);
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -224,7 +226,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setKeepAlive(boolean keepAlive) {
         try {
-            ((KQueueSocketChannel) channel).socket.setKeepAlive(keepAlive);
+            channel.socket.setKeepAlive(keepAlive);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -234,7 +236,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setReceiveBufferSize(int receiveBufferSize) {
         try {
-            ((KQueueSocketChannel) channel).socket.setReceiveBufferSize(receiveBufferSize);
+            channel.socket.setReceiveBufferSize(receiveBufferSize);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -244,7 +246,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setReuseAddress(boolean reuseAddress) {
         try {
-            ((KQueueSocketChannel) channel).socket.setReuseAddress(reuseAddress);
+            channel.socket.setReuseAddress(reuseAddress);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -254,7 +256,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setSendBufferSize(int sendBufferSize) {
         try {
-            ((KQueueSocketChannel) channel).socket.setSendBufferSize(sendBufferSize);
+            channel.socket.setSendBufferSize(sendBufferSize);
             calculateMaxBytesPerGatheringWrite();
             return this;
         } catch (IOException e) {
@@ -265,7 +267,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setSoLinger(int soLinger) {
         try {
-            ((KQueueSocketChannel) channel).socket.setSoLinger(soLinger);
+            channel.socket.setSoLinger(soLinger);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -275,7 +277,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setTcpNoDelay(boolean tcpNoDelay) {
         try {
-            ((KQueueSocketChannel) channel).socket.setTcpNoDelay(tcpNoDelay);
+            channel.socket.setTcpNoDelay(tcpNoDelay);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -285,7 +287,7 @@ public final class KQueueSocketChannelConfig extends KQueueChannelConfig impleme
     @Override
     public KQueueSocketChannelConfig setTrafficClass(int trafficClass) {
         try {
-            ((KQueueSocketChannel) channel).socket.setTrafficClass(trafficClass);
+            channel.socket.setTrafficClass(trafficClass);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);

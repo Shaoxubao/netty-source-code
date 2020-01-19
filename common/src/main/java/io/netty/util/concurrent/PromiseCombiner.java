@@ -28,61 +28,25 @@ import io.netty.util.internal.ObjectUtil;
  * {@link PromiseCombiner#add(Future)} and {@link PromiseCombiner#addAll(Future[])} methods. When all futures to be
  * combined have been added, callers must provide an aggregate promise to be notified when all combined promises have
  * finished via the {@link PromiseCombiner#finish(Promise)} method.</p>
- *
- * <p>This implementation is <strong>NOT</strong> thread-safe and all methods must be called
- * from the {@link EventExecutor} thread.</p>
  */
 public final class PromiseCombiner {
     private int expectedCount;
     private int doneCount;
+    private boolean doneAdding;
     private Promise<Void> aggregatePromise;
     private Throwable cause;
     private final GenericFutureListener<Future<?>> listener = new GenericFutureListener<Future<?>>() {
         @Override
-        public void operationComplete(final Future<?> future) {
-            if (executor.inEventLoop()) {
-                operationComplete0(future);
-            } else {
-                executor.execute(new Runnable() {
-                    @Override
-                    public void run() {
-                        operationComplete0(future);
-                    }
-                });
-            }
-        }
-
-        private void operationComplete0(Future<?> future) {
-            assert executor.inEventLoop();
+        public void operationComplete(Future<?> future) throws Exception {
             ++doneCount;
             if (!future.isSuccess() && cause == null) {
                 cause = future.cause();
             }
-            if (doneCount == expectedCount && aggregatePromise != null) {
+            if (doneCount == expectedCount && doneAdding) {
                 tryPromise();
             }
         }
     };
-
-    private final EventExecutor executor;
-
-    /**
-     * Deprecated use {@link PromiseCombiner#PromiseCombiner(EventExecutor)}.
-     */
-    @Deprecated
-    public PromiseCombiner() {
-        this(ImmediateEventExecutor.INSTANCE);
-    }
-
-    /**
-     * The {@link EventExecutor} to use for notifications. You must call {@link #add(Future)}, {@link #addAll(Future[])}
-     * and {@link #finish(Promise)} from within the {@link EventExecutor} thread.
-     *
-     * @param executor the {@link EventExecutor} to use for notifications.
-     */
-    public PromiseCombiner(EventExecutor executor) {
-        this.executor = ObjectUtil.checkNotNull(executor, "executor");
-    }
 
     /**
      * Adds a new promise to be combined. New promises may be added until an aggregate promise is added via the
@@ -106,7 +70,6 @@ public final class PromiseCombiner {
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void add(Future future) {
         checkAddAllowed();
-        checkInEventLoop();
         ++expectedCount;
         future.addListener(listener);
     }
@@ -149,20 +112,13 @@ public final class PromiseCombiner {
      * @param aggregatePromise the promise to notify when all combined futures have finished
      */
     public void finish(Promise<Void> aggregatePromise) {
-        ObjectUtil.checkNotNull(aggregatePromise, "aggregatePromise");
-        checkInEventLoop();
-        if (this.aggregatePromise != null) {
+        if (doneAdding) {
             throw new IllegalStateException("Already finished");
         }
-        this.aggregatePromise = aggregatePromise;
+        doneAdding = true;
+        this.aggregatePromise = ObjectUtil.checkNotNull(aggregatePromise, "aggregatePromise");
         if (doneCount == expectedCount) {
             tryPromise();
-        }
-    }
-
-    private void checkInEventLoop() {
-        if (!executor.inEventLoop()) {
-            throw new IllegalStateException("Must be called from EventExecutor thread");
         }
     }
 
@@ -171,7 +127,7 @@ public final class PromiseCombiner {
     }
 
     private void checkAddAllowed() {
-        if (aggregatePromise != null) {
+        if (doneAdding) {
             throw new IllegalStateException("Adding promises is not allowed after finished adding");
         }
     }

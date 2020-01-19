@@ -15,11 +15,8 @@
  */
 package io.netty.handler.codec.http;
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.util.CharsetUtil;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -56,7 +53,9 @@ public class HttpVersion implements Comparable<HttpVersion> {
      * returned.
      */
     public static HttpVersion valueOf(String text) {
-        ObjectUtil.checkNotNull(text, "text");
+        if (text == null) {
+            throw new NullPointerException("text");
+        }
 
         text = text.trim();
 
@@ -108,7 +107,9 @@ public class HttpVersion implements Comparable<HttpVersion> {
      *        the {@code "Connection"} header is set to {@code "close"} explicitly.
      */
     public HttpVersion(String text, boolean keepAliveDefault) {
-        ObjectUtil.checkNotNull(text, "text");
+        if (text == null) {
+            throw new NullPointerException("text");
+        }
 
         text = text.trim().toUpperCase();
         if (text.isEmpty()) {
@@ -148,7 +149,9 @@ public class HttpVersion implements Comparable<HttpVersion> {
     private HttpVersion(
             String protocolName, int majorVersion, int minorVersion,
             boolean keepAliveDefault, boolean bytes) {
-        ObjectUtil.checkNotNull(protocolName, "protocolName");
+        if (protocolName == null) {
+            throw new NullPointerException("protocolName");
+        }
 
         protocolName = protocolName.trim().toUpperCase();
         if (protocolName.isEmpty()) {
@@ -162,8 +165,12 @@ public class HttpVersion implements Comparable<HttpVersion> {
             }
         }
 
-        checkPositiveOrZero(majorVersion, "majorVersion");
-        checkPositiveOrZero(minorVersion, "minorVersion");
+        if (majorVersion < 0) {
+            throw new IllegalArgumentException("negative majorVersion");
+        }
+        if (minorVersion < 0) {
+            throw new IllegalArgumentException("negative minorVersion");
+        }
 
         this.protocolName = protocolName;
         this.majorVersion = majorVersion;

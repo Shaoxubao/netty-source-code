@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec.http2;
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.DefaultByteBufHolder;
 import io.netty.buffer.Unpooled;
@@ -100,7 +98,9 @@ public final class DefaultHttp2GoAwayFrame extends DefaultByteBufHolder implemen
 
     @Override
     public Http2GoAwayFrame setExtraStreamIds(int extraStreamIds) {
-        checkPositiveOrZero(extraStreamIds, "extraStreamIds");
+        if (extraStreamIds < 0) {
+            throw new IllegalArgumentException("extraStreamIds must be non-negative");
+        }
         this.extraStreamIds = extraStreamIds;
         return this;
     }

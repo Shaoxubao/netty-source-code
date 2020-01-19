@@ -1012,20 +1012,6 @@ public class DefaultHeaders<K, V, T extends Headers<K, V, T>> implements Headers
         return value;
     }
 
-    private HeaderEntry<K, V> remove0(HeaderEntry<K, V> entry, HeaderEntry<K, V> previous) {
-        int i = index(entry.hash);
-        HeaderEntry<K, V> e = entries[i];
-        if (e == entry) {
-            entries[i] = entry.next;
-            previous = entries[i];
-        } else {
-            previous.next = entry.next;
-        }
-        entry.remove();
-        --size;
-        return previous;
-    }
-
     @SuppressWarnings("unchecked")
     private T thisT() {
         return (T) this;
@@ -1069,8 +1055,6 @@ public class DefaultHeaders<K, V, T extends Headers<K, V, T>> implements Headers
     private final class ValueIterator implements Iterator<V> {
         private final K name;
         private final int hash;
-        private HeaderEntry<K, V> removalPrevious;
-        private HeaderEntry<K, V> previous;
         private HeaderEntry<K, V> next;
 
         ValueIterator(K name) {
@@ -1089,21 +1073,14 @@ public class DefaultHeaders<K, V, T extends Headers<K, V, T>> implements Headers
             if (!hasNext()) {
                 throw new NoSuchElementException();
             }
-            if (previous != null) {
-                removalPrevious = previous;
-            }
-            previous = next;
+            HeaderEntry<K, V> current = next;
             calculateNext(next.next);
-            return previous.value;
+            return current.value;
         }
 
         @Override
         public void remove() {
-            if (previous == null) {
-                throw new IllegalStateException();
-            }
-            removalPrevious = remove0(previous, removalPrevious);
-            previous = null;
+            throw new UnsupportedOperationException("read only");
         }
 
         private void calculateNext(HeaderEntry<K, V> entry) {

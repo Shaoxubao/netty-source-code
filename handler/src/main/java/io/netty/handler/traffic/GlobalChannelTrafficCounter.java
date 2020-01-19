@@ -78,6 +78,8 @@ public class GlobalChannelTrafficCounter extends TrafficCounter {
                 perChannel.channelTrafficCounter.resetAccounting(newLastTime);
             }
             trafficShapingHandler1.doAccounting(counter);
+            counter.scheduledFuture = counter.executor.schedule(this, counter.checkInterval.get(),
+                                                                TimeUnit.MILLISECONDS);
         }
     }
 
@@ -95,7 +97,7 @@ public class GlobalChannelTrafficCounter extends TrafficCounter {
             monitorActive = true;
             monitor = new MixedTrafficMonitoringTask((GlobalChannelTrafficShapingHandler) trafficShapingHandler, this);
             scheduledFuture =
-                executor.scheduleAtFixedRate(monitor, 0, localCheckInterval, TimeUnit.MILLISECONDS);
+                executor.schedule(monitor, localCheckInterval, TimeUnit.MILLISECONDS);
         }
     }
 

@@ -16,73 +16,80 @@
 
 package io.netty.buffer;
 
+import io.netty.util.IllegalReferenceCountException;
+import io.netty.util.internal.PlatformDependent;
+
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import io.netty.util.internal.ReferenceCountUpdater;
+import static io.netty.util.internal.ObjectUtil.checkPositive;
 
 /**
  * Abstract base class for {@link ByteBuf} implementations that count references.
  */
 public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
-    private static final long REFCNT_FIELD_OFFSET =
-            ReferenceCountUpdater.getUnsafeOffset(AbstractReferenceCountedByteBuf.class, "refCnt");
-    private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> AIF_UPDATER =
+    private static final long REFCNT_FIELD_OFFSET;
+    private static final AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> refCntUpdater =
             AtomicIntegerFieldUpdater.newUpdater(AbstractReferenceCountedByteBuf.class, "refCnt");
 
-    private static final ReferenceCountUpdater<AbstractReferenceCountedByteBuf> updater =
-            new ReferenceCountUpdater<AbstractReferenceCountedByteBuf>() {
-        @Override
-        protected AtomicIntegerFieldUpdater<AbstractReferenceCountedByteBuf> updater() {
-            return AIF_UPDATER;
-        }
-        @Override
-        protected long unsafeOffset() {
-            return REFCNT_FIELD_OFFSET;
-        }
-    };
+    private volatile int refCnt = 1;
 
-    // Value might not equal "real" reference count, all access should be via the updater
-    @SuppressWarnings("unused")
-    private volatile int refCnt = updater.initialValue();
+    static {
+        long refCntFieldOffset = -1;
+        try {
+            if (PlatformDependent.hasUnsafe()) {
+                refCntFieldOffset = PlatformDependent.objectFieldOffset(
+                        AbstractReferenceCountedByteBuf.class.getDeclaredField("refCnt"));
+            }
+        } catch (Throwable ignore) {
+            refCntFieldOffset = -1;
+        }
+
+        REFCNT_FIELD_OFFSET = refCntFieldOffset;
+    }
 
     protected AbstractReferenceCountedByteBuf(int maxCapacity) {
         super(maxCapacity);
     }
 
     @Override
-    boolean isAccessible() {
+    int internalRefCnt() {
         // Try to do non-volatile read for performance as the ensureAccessible() is racy anyway and only provide
         // a best-effort guard.
-        return updater.isLiveNonVolatile(this);
+        //
+        // TODO: Once we compile against later versions of Java we can replace the Unsafe usage here by varhandles.
+        return REFCNT_FIELD_OFFSET != -1 ? PlatformDependent.getInt(this, REFCNT_FIELD_OFFSET) : refCnt();
     }
 
     @Override
     public int refCnt() {
-        return updater.refCnt(this);
+        return refCnt;
     }
 
     /**
      * An unsafe operation intended for use by a subclass that sets the reference count of the buffer directly
      */
     protected final void setRefCnt(int refCnt) {
-        updater.setRefCnt(this, refCnt);
-    }
-
-    /**
-     * An unsafe operation intended for use by a subclass that resets the reference count of the buffer to 1
-     */
-    protected final void resetRefCnt() {
-        updater.resetRefCnt(this);
+        refCntUpdater.set(this, refCnt);
     }
 
     @Override
     public ByteBuf retain() {
-        return updater.retain(this);
+        return retain0(1);
     }
 
     @Override
     public ByteBuf retain(int increment) {
-        return updater.retain(this, increment);
+        return retain0(checkPositive(increment, "increment"));
+    }
+
+    private ByteBuf retain0(final int increment) {
+        int oldRef = refCntUpdater.getAndAdd(this, increment);
+        if (oldRef <= 0 || oldRef + increment < oldRef) {
+            // Ensure we don't resurrect (which means the refCnt was 0) and also that we encountered an overflow.
+            refCntUpdater.getAndAdd(this, -increment);
+            throw new IllegalReferenceCountException(oldRef, increment);
+        }
+        return this;
     }
 
     @Override
@@ -97,21 +104,27 @@ public abstract class AbstractReferenceCountedByteBuf extends AbstractByteBuf {
 
     @Override
     public boolean release() {
-        return handleRelease(updater.release(this));
+        return release0(1);
     }
 
     @Override
     public boolean release(int decrement) {
-        return handleRelease(updater.release(this, decrement));
+        return release0(checkPositive(decrement, "decrement"));
     }
 
-    private boolean handleRelease(boolean result) {
-        if (result) {
+    private boolean release0(int decrement) {
+        int oldRef = refCntUpdater.getAndAdd(this, -decrement);
+        if (oldRef == decrement) {
             deallocate();
+            return true;
         }
-        return result;
+        if (oldRef < decrement || oldRef - decrement > oldRef) {
+            // Ensure we don't over-release, and avoid underflow.
+            refCntUpdater.getAndAdd(this, decrement);
+            throw new IllegalReferenceCountException(oldRef, -decrement);
+        }
+        return false;
     }
-
     /**
      * Called once {@link #refCnt()} is equals 0.
      */

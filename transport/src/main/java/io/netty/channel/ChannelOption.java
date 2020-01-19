@@ -18,7 +18,6 @@ package io.netty.channel;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.AbstractConstant;
 import io.netty.util.ConstantPool;
-import io.netty.util.internal.ObjectUtil;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -66,10 +65,7 @@ public class ChannelOption<T> extends AbstractConstant<ChannelOption<T>> {
     /**
      * Creates a new {@link ChannelOption} for the given {@code name} or fail with an
      * {@link IllegalArgumentException} if a {@link ChannelOption} for the given {@code name} exists.
-     *
-     * @deprecated use {@link #valueOf(String)}.
      */
-    @Deprecated
     @SuppressWarnings("unchecked")
     public static <T> ChannelOption<T> newInstance(String name) {
         return (ChannelOption<T>) pool.newInstance(name);
@@ -150,6 +146,8 @@ public class ChannelOption<T> extends AbstractConstant<ChannelOption<T>> {
      * may override this for special checks.
      */
     public void validate(T value) {
-        ObjectUtil.checkNotNull(value, "value");
+        if (value == null) {
+            throw new NullPointerException("value");
+        }
     }
 }

@@ -18,7 +18,6 @@ package io.netty.channel.group;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelException;
 import io.netty.channel.ChannelFuture;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -33,8 +32,12 @@ public class ChannelGroupException extends ChannelException implements Iterable<
     private final Collection<Map.Entry<Channel, Throwable>> failed;
 
     public ChannelGroupException(Collection<Map.Entry<Channel, Throwable>> causes) {
-        ObjectUtil.checkNonEmpty(causes, "causes");
-
+        if (causes == null) {
+            throw new NullPointerException("causes");
+        }
+        if (causes.isEmpty()) {
+            throw new IllegalArgumentException("causes must be non empty");
+        }
         failed = Collections.unmodifiableCollection(causes);
     }
 

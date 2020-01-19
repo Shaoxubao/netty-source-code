@@ -16,6 +16,7 @@
 package io.netty.channel.unix;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.channel.ChannelOutboundBuffer.MessageProcessor;
 import io.netty.util.internal.PlatformDependent;
 
@@ -77,33 +78,33 @@ public final class IovArray implements MessageProcessor {
     }
 
     /**
-     * @deprecated Use {@link #add(ByteBuf, int, int)}
+     * Add a {@link ByteBuf} to this {@link IovArray}.
+     * @param buf The {@link ByteBuf} to add.
+     * @return {@code true} if the entire {@link ByteBuf} has been added to this {@link IovArray}. Note in the event
+     * that {@link ByteBuf} is a {@link CompositeByteBuf} {@code false} may be returned even if some of the components
+     * have been added.
      */
-    @Deprecated
     public boolean add(ByteBuf buf) {
-        return add(buf, buf.readerIndex(), buf.readableBytes());
-    }
-
-    public boolean add(ByteBuf buf, int offset, int len) {
         if (count == IOV_MAX) {
             // No more room!
             return false;
         } else if (buf.nioBufferCount() == 1) {
+            final int len = buf.readableBytes();
             if (len == 0) {
                 return true;
             }
             if (buf.hasMemoryAddress()) {
-                return add(buf.memoryAddress() + offset, len);
+                return add(buf.memoryAddress(), buf.readerIndex(), len);
             } else {
-                ByteBuffer nioBuffer = buf.internalNioBuffer(offset, len);
-                return add(Buffer.memoryAddress(nioBuffer) + nioBuffer.position(), len);
+                ByteBuffer nioBuffer = buf.internalNioBuffer(buf.readerIndex(), len);
+                return add(Buffer.memoryAddress(nioBuffer), nioBuffer.position(), len);
             }
         } else {
-            ByteBuffer[] buffers = buf.nioBuffers(offset, len);
+            ByteBuffer[] buffers = buf.nioBuffers();
             for (ByteBuffer nioBuffer : buffers) {
-                final int remaining = nioBuffer.remaining();
-                if (remaining != 0 &&
-                        (!add(Buffer.memoryAddress(nioBuffer) + nioBuffer.position(), remaining) || count == IOV_MAX)) {
+                final int len = nioBuffer.remaining();
+                if (len != 0 &&
+                    (!add(Buffer.memoryAddress(nioBuffer), nioBuffer.position(), len) || count == IOV_MAX)) {
                     return false;
                 }
             }
@@ -111,7 +112,7 @@ public final class IovArray implements MessageProcessor {
         }
     }
 
-    private boolean add(long addr, int len) {
+    private boolean add(long addr, int offset, int len) {
         assert addr != 0;
 
         // If there is at least 1 entry then we enforce the maximum bytes. We want to accept at least one entry so we
@@ -134,19 +135,19 @@ public final class IovArray implements MessageProcessor {
         if (ADDRESS_SIZE == 8) {
             // 64bit
             if (PlatformDependent.hasUnsafe()) {
-                PlatformDependent.putLong(baseOffset + memoryAddress, addr);
+                PlatformDependent.putLong(baseOffset + memoryAddress, addr + offset);
                 PlatformDependent.putLong(lengthOffset + memoryAddress, len);
             } else {
-                memory.putLong(baseOffset, addr);
+                memory.putLong(baseOffset, addr + offset);
                 memory.putLong(lengthOffset, len);
             }
         } else {
             assert ADDRESS_SIZE == 4;
             if (PlatformDependent.hasUnsafe()) {
-                PlatformDependent.putInt(baseOffset + memoryAddress, (int) addr);
+                PlatformDependent.putInt(baseOffset + memoryAddress, (int) addr + offset);
                 PlatformDependent.putInt(lengthOffset + memoryAddress, len);
             } else {
-                memory.putInt(baseOffset, (int) addr);
+                memory.putInt(baseOffset, (int) addr + offset);
                 memory.putInt(lengthOffset, len);
             }
         }
@@ -168,22 +169,22 @@ public final class IovArray implements MessageProcessor {
     }
 
     /**
-     * Set the maximum amount of bytes that can be added to this {@link IovArray} via {@link #add(ByteBuf, int, int)}
+     * Set the maximum amount of bytes that can be added to this {@link IovArray} via {@link #add(ByteBuf)}.
      * <p>
      * This will not impact the existing state of the {@link IovArray}, and only applies to subsequent calls to
      * {@link #add(ByteBuf)}.
      * <p>
      * In order to ensure some progress is made at least one {@link ByteBuf} will be accepted even if it's size exceeds
      * this value.
-     * @param maxBytes the maximum amount of bytes that can be added to this {@link IovArray}.
+     * @param maxBytes the maximum amount of bytes that can be added to this {@link IovArray} via {@link #add(ByteBuf)}.
      */
     public void maxBytes(long maxBytes) {
         this.maxBytes = min(SSIZE_MAX, checkPositive(maxBytes, "maxBytes"));
     }
 
     /**
-     * Get the maximum amount of bytes that can be added to this {@link IovArray}.
-     * @return the maximum amount of bytes that can be added to this {@link IovArray}.
+     * Get the maximum amount of bytes that can be added to this {@link IovArray} via {@link #add(ByteBuf)}.
+     * @return the maximum amount of bytes that can be added to this {@link IovArray} via {@link #add(ByteBuf)}.
      */
     public long maxBytes() {
         return maxBytes;
@@ -205,11 +206,7 @@ public final class IovArray implements MessageProcessor {
 
     @Override
     public boolean processMessage(Object msg) throws Exception {
-        if (msg instanceof ByteBuf) {
-            ByteBuf buffer = (ByteBuf) msg;
-            return add(buffer, buffer.readerIndex(), buffer.readableBytes());
-        }
-        return false;
+        return msg instanceof ByteBuf && add((ByteBuf) msg);
     }
 
     private static int idx(int index) {

@@ -26,7 +26,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static io.netty.handler.codec.http.HttpHeaderNames.SET_COOKIE;
 import static io.netty.util.AsciiString.CASE_INSENSITIVE_HASHER;
 import static io.netty.util.internal.StringUtil.COMMA;
 import static io.netty.util.internal.StringUtil.unescapeCsvFields;
@@ -79,7 +78,7 @@ public class CombinedHttpHeaders extends DefaultHttpHeaders {
             return charSequenceEscaper;
         }
 
-        CombinedHttpHeadersImpl(HashingStrategy<CharSequence> nameHashingStrategy,
+        public CombinedHttpHeadersImpl(HashingStrategy<CharSequence> nameHashingStrategy,
                 ValueConverter<CharSequence> valueConverter,
                 io.netty.handler.codec.DefaultHeaders.NameValidator<CharSequence> nameValidator) {
             super(nameHashingStrategy, valueConverter, nameValidator);
@@ -88,7 +87,7 @@ public class CombinedHttpHeaders extends DefaultHttpHeaders {
         @Override
         public Iterator<CharSequence> valueIterator(CharSequence name) {
             Iterator<CharSequence> itr = super.valueIterator(name);
-            if (!itr.hasNext() || cannotBeCombined(name)) {
+            if (!itr.hasNext()) {
                 return itr;
             }
             Iterator<CharSequence> unescapedItr = unescapeCsvFields(itr.next()).iterator();
@@ -101,7 +100,7 @@ public class CombinedHttpHeaders extends DefaultHttpHeaders {
         @Override
         public List<CharSequence> getAll(CharSequence name) {
             List<CharSequence> values = super.getAll(name);
-            if (values.isEmpty() || cannotBeCombined(name)) {
+            if (values.isEmpty()) {
                 return values;
             }
             if (values.size() != 1) {
@@ -214,13 +213,9 @@ public class CombinedHttpHeaders extends DefaultHttpHeaders {
             return this;
         }
 
-        private static boolean cannotBeCombined(CharSequence name) {
-            return SET_COOKIE.contentEqualsIgnoreCase(name);
-        }
-
         private CombinedHttpHeadersImpl addEscapedValue(CharSequence name, CharSequence escapedValue) {
             CharSequence currentValue = super.get(name);
-            if (currentValue == null || cannotBeCombined(name)) {
+            if (currentValue == null) {
                 super.add(name, escapedValue);
             } else {
                 super.set(name, commaSeparateEscapedValues(currentValue, escapedValue));

@@ -16,8 +16,6 @@
 
 package io.netty.handler.codec.mqtt;
 
-import java.util.Arrays;
-
 import io.netty.util.CharsetUtil;
 import io.netty.util.internal.StringUtil;
 
@@ -105,9 +103,9 @@ public final class MqttConnectPayload {
             .append('[')
             .append("clientIdentifier=").append(clientIdentifier)
             .append(", willTopic=").append(willTopic)
-            .append(", willMessage=").append(Arrays.toString(willMessage))
+            .append(", willMessage=").append(willMessage)
             .append(", userName=").append(userName)
-            .append(", password=").append(Arrays.toString(password))
+            .append(", password=").append(password)
             .append(']')
             .toString();
     }

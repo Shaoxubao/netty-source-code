@@ -23,6 +23,8 @@ import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
 import java.lang.reflect.Constructor;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  * This static factory should be used to load {@link ResourceLeakDetector}s as needed
@@ -60,7 +62,7 @@ public abstract class ResourceLeakDetectorFactory {
      * @return a new instance of {@link ResourceLeakDetector}
      */
     public final <T> ResourceLeakDetector<T> newResourceLeakDetector(Class<T> resource) {
-        return newResourceLeakDetector(resource, ResourceLeakDetector.SAMPLING_INTERVAL);
+        return newResourceLeakDetector(resource, ResourceLeakDetector.DEFAULT_SAMPLING_INTERVAL);
     }
 
     /**
@@ -88,7 +90,7 @@ public abstract class ResourceLeakDetectorFactory {
      */
     @SuppressWarnings("deprecation")
     public <T> ResourceLeakDetector<T> newResourceLeakDetector(Class<T> resource, int samplingInterval) {
-        return newResourceLeakDetector(resource, ResourceLeakDetector.SAMPLING_INTERVAL, Long.MAX_VALUE);
+        return newResourceLeakDetector(resource, ResourceLeakDetector.DEFAULT_SAMPLING_INTERVAL, Long.MAX_VALUE);
     }
 
     /**
@@ -101,7 +103,12 @@ public abstract class ResourceLeakDetectorFactory {
         DefaultResourceLeakDetectorFactory() {
             String customLeakDetector;
             try {
-                customLeakDetector = SystemPropertyUtil.get("io.netty.customResourceLeakDetector");
+                customLeakDetector = AccessController.doPrivileged(new PrivilegedAction<String>() {
+                    @Override
+                    public String run() {
+                        return SystemPropertyUtil.get("io.netty.customResourceLeakDetector");
+                    }
+                });
             } catch (Throwable cause) {
                 logger.error("Could not access System property: io.netty.customResourceLeakDetector", cause);
                 customLeakDetector = null;

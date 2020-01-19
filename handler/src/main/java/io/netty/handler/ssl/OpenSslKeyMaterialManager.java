@@ -15,6 +15,8 @@
  */
 package io.netty.handler.ssl;
 
+import io.netty.internal.tcnative.SSL;
+
 import javax.net.ssl.SSLException;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509KeyManager;
@@ -64,40 +66,45 @@ final class OpenSslKeyMaterialManager {
     }
 
     void setKeyMaterialServerSide(ReferenceCountedOpenSslEngine engine) throws SSLException {
-        String[] authMethods = engine.authMethods();
-        if (authMethods.length == 0) {
-            return;
-        }
+        long ssl = engine.sslPointer();
+        String[] authMethods = SSL.authenticationMethods(ssl);
         Set<String> aliases = new HashSet<String>(authMethods.length);
         for (String authMethod : authMethods) {
             String type = KEY_TYPES.get(authMethod);
             if (type != null) {
                 String alias = chooseServerAlias(engine, type);
                 if (alias != null && aliases.add(alias)) {
-                    if (!setKeyMaterial(engine, alias)) {
-                        return;
+                    OpenSslKeyMaterial keyMaterial = null;
+                    try {
+                        keyMaterial = provider.chooseKeyMaterial(engine.alloc, alias);
+                        if (keyMaterial != null) {
+                            SSL.setKeyMaterialServerSide(
+                                    ssl, keyMaterial.certificateChainAddress(), keyMaterial.privateKeyAddress());
+                        }
+                    } catch (SSLException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        throw new SSLException(e);
+                    } finally {
+                        if (keyMaterial != null) {
+                            keyMaterial.release();
+                        }
                     }
                 }
             }
         }
     }
 
-    void setKeyMaterialClientSide(ReferenceCountedOpenSslEngine engine, String[] keyTypes,
+    void setKeyMaterialClientSide(ReferenceCountedOpenSslEngine engine, long certOut, long keyOut, String[] keyTypes,
                                   X500Principal[] issuer) throws SSLException {
         String alias = chooseClientAlias(engine, keyTypes, issuer);
-        // Only try to set the keymaterial if we have a match. This is also consistent with what OpenJDK does:
-        // http://hg.openjdk.java.net/jdk/jdk11/file/76072a077ee1/
-        // src/java.base/share/classes/sun/security/ssl/CertificateRequest.java#l362
-        if (alias != null) {
-            setKeyMaterial(engine, alias);
-        }
-    }
-
-    private boolean setKeyMaterial(ReferenceCountedOpenSslEngine engine, String alias) throws SSLException {
         OpenSslKeyMaterial keyMaterial = null;
         try {
             keyMaterial = provider.chooseKeyMaterial(engine.alloc, alias);
-            return keyMaterial == null || engine.setKeyMaterial(keyMaterial);
+            if (keyMaterial != null) {
+                SSL.setKeyMaterialClientSide(engine.sslPointer(), certOut, keyOut,
+                        keyMaterial.certificateChainAddress(), keyMaterial.privateKeyAddress());
+            }
         } catch (SSLException e) {
             throw e;
         } catch (Exception e) {
@@ -108,6 +115,7 @@ final class OpenSslKeyMaterialManager {
             }
         }
     }
+
     private String chooseClientAlias(ReferenceCountedOpenSslEngine engine,
                                        String[] keyTypes, X500Principal[] issuer) {
         X509KeyManager manager = provider.keyManager();

@@ -56,6 +56,9 @@ public class Socks5InitialRequestDecoder extends ReplayingDecoder<State> {
                 }
 
                 final int authMethodCnt = in.readUnsignedByte();
+                if (actualReadableBytes() < authMethodCnt) {
+                    break;
+                }
 
                 final Socks5AuthMethod[] authMethods = new Socks5AuthMethod[authMethodCnt];
                 for (int i = 0; i < authMethodCnt; i++) {

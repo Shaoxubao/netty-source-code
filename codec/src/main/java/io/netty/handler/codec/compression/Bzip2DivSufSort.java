@@ -568,9 +568,7 @@ final class Bzip2DivSufSort {
                     SA[i++] = SA[k];
                     SA[k++] = SA[i];
                     if (last <= k) {
-                        while (j < bufend) {
-                            SA[i++] = buf[j]; buf[j++] = SA[i];
-                        }
+                        while (j < bufend) { SA[i++] = buf[j]; buf[j++] = SA[i]; }
                         SA[i] = buf[j]; buf[j] = t;
                         return;
                     }

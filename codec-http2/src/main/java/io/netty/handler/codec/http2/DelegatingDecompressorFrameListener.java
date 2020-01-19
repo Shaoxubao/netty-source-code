@@ -33,10 +33,9 @@ import static io.netty.handler.codec.http.HttpHeaderValues.X_GZIP;
 import static io.netty.handler.codec.http2.Http2Error.INTERNAL_ERROR;
 import static io.netty.handler.codec.http2.Http2Exception.streamError;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
- * An HTTP2 frame listener that will decompress data frames according to the {@code content-encoding} header for each
+ * A HTTP2 frame listener that will decompress data frames according to the {@code content-encoding} header for each
  * stream. The decompression provided by this class will be applied to the data for the entire stream.
  */
 @UnstableApi
@@ -399,7 +398,9 @@ public class DelegatingDecompressorFrameListener extends Http2FrameListenerDecor
          * @return The number of pre-decompressed bytes that have been consumed.
          */
         int consumeBytes(int streamId, int decompressedBytes) throws Http2Exception {
-            checkPositiveOrZero(decompressedBytes, "decompressedBytes");
+            if (decompressedBytes < 0) {
+                throw new IllegalArgumentException("decompressedBytes must not be negative: " + decompressedBytes);
+            }
             if (decompressed - decompressedBytes < 0) {
                 throw streamError(streamId, INTERNAL_ERROR,
                         "Attempting to return too many bytes for stream %d. decompressed: %d " +

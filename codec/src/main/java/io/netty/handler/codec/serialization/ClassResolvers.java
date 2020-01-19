@@ -32,7 +32,7 @@ public final class ClassResolvers {
     }
 
     /**
-     * non-aggressive non-concurrent cache
+     * non-agressive non-concurrent cache
      * good for non-shared default cache
      *
      * @param classLoader - specific classLoader to use, or null if you want to revert to default
@@ -45,7 +45,7 @@ public final class ClassResolvers {
     }
 
     /**
-     * aggressive non-concurrent cache
+     * agressive non-concurrent cache
      * good for non-shared cache, when we're not worried about class unloading
      *
      * @param classLoader - specific classLoader to use, or null if you want to revert to default
@@ -58,7 +58,7 @@ public final class ClassResolvers {
     }
 
     /**
-     * non-aggressive concurrent cache
+     * non-agressive concurrent cache
      * good for shared cache, when we're worried about class unloading
      *
      * @param classLoader - specific classLoader to use, or null if you want to revert to default
@@ -72,7 +72,7 @@ public final class ClassResolvers {
     }
 
     /**
-     * aggressive concurrent cache
+     * agressive concurrent cache
      * good for shared cache, when we're not worried about class unloading
      *
      * @param classLoader - specific classLoader to use, or null if you want to revert to default

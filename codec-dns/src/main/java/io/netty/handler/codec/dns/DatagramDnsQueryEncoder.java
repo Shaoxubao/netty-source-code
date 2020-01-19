@@ -26,6 +26,8 @@ import io.netty.util.internal.UnstableApi;
 import java.net.InetSocketAddress;
 import java.util.List;
 
+import static io.netty.util.internal.ObjectUtil.checkNotNull;
+
 /**
  * Encodes a {@link DatagramDnsQuery} (or an {@link AddressedEnvelope} of {@link DnsQuery}} into a
  * {@link DatagramPacket}.
@@ -34,7 +36,7 @@ import java.util.List;
 @ChannelHandler.Sharable
 public class DatagramDnsQueryEncoder extends MessageToMessageEncoder<AddressedEnvelope<DnsQuery, InetSocketAddress>> {
 
-    private final DnsQueryEncoder encoder;
+    private final DnsRecordEncoder recordEncoder;
 
     /**
      * Creates a new encoder with {@linkplain DnsRecordEncoder#DEFAULT the default record encoder}.
@@ -47,7 +49,7 @@ public class DatagramDnsQueryEncoder extends MessageToMessageEncoder<AddressedEn
      * Creates a new encoder with the specified {@code recordEncoder}.
      */
     public DatagramDnsQueryEncoder(DnsRecordEncoder recordEncoder) {
-        this.encoder = new DnsQueryEncoder(recordEncoder);
+        this.recordEncoder = checkNotNull(recordEncoder, "recordEncoder");
     }
 
     @Override
@@ -61,7 +63,9 @@ public class DatagramDnsQueryEncoder extends MessageToMessageEncoder<AddressedEn
 
         boolean success = false;
         try {
-            encoder.encode(query, buf);
+            encodeHeader(query, buf);
+            encodeQuestions(query, buf);
+            encodeRecords(query, DnsSection.ADDITIONAL, buf);
             success = true;
         } finally {
             if (!success) {
@@ -80,5 +84,39 @@ public class DatagramDnsQueryEncoder extends MessageToMessageEncoder<AddressedEn
         ChannelHandlerContext ctx,
         @SuppressWarnings("unused") AddressedEnvelope<DnsQuery, InetSocketAddress> msg) throws Exception {
         return ctx.alloc().ioBuffer(1024);
+    }
+
+    /**
+     * Encodes the header that is always 12 bytes long.
+     *
+     * @param query the query header being encoded
+     * @param buf   the buffer the encoded data should be written to
+     */
+    private static void encodeHeader(DnsQuery query, ByteBuf buf) {
+        buf.writeShort(query.id());
+        int flags = 0;
+        flags |= (query.opCode().byteValue() & 0xFF) << 14;
+        if (query.isRecursionDesired()) {
+            flags |= 1 << 8;
+        }
+        buf.writeShort(flags);
+        buf.writeShort(query.count(DnsSection.QUESTION));
+        buf.writeShort(0); // answerCount
+        buf.writeShort(0); // authorityResourceCount
+        buf.writeShort(query.count(DnsSection.ADDITIONAL));
+    }
+
+    private void encodeQuestions(DnsQuery query, ByteBuf buf) throws Exception {
+        final int count = query.count(DnsSection.QUESTION);
+        for (int i = 0; i < count; i++) {
+            recordEncoder.encodeQuestion((DnsQuestion) query.recordAt(DnsSection.QUESTION, i), buf);
+        }
+    }
+
+    private void encodeRecords(DnsQuery query, DnsSection section, ByteBuf buf) throws Exception {
+        final int count = query.count(section);
+        for (int i = 0; i < count; i++) {
+            recordEncoder.encodeRecord(query.recordAt(section, i), buf);
+        }
     }
 }

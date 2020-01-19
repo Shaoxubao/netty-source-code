@@ -14,6 +14,9 @@
  */
 package io.netty.handler.codec.http;
 
+import static io.netty.util.AsciiString.containsContentEqualsIgnoreCase;
+import static io.netty.util.AsciiString.containsAllContentEqualsIgnoreCase;
+
 import io.netty.buffer.Unpooled;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -27,10 +30,7 @@ import java.util.List;
 
 import static io.netty.handler.codec.http.HttpResponseStatus.SWITCHING_PROTOCOLS;
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
-import static io.netty.util.AsciiString.containsAllContentEqualsIgnoreCase;
-import static io.netty.util.AsciiString.containsContentEqualsIgnoreCase;
 import static io.netty.util.internal.ObjectUtil.checkNotNull;
-import static io.netty.util.internal.StringUtil.COMMA;
 
 /**
  * A server-side handler that receives HTTP requests and optionally performs a protocol switch if
@@ -284,23 +284,16 @@ public class HttpServerUpgradeHandler extends HttpObjectAggregator {
         }
 
         // Make sure the CONNECTION header is present.
-        List<String> connectionHeaderValues = request.headers().getAll(HttpHeaderNames.CONNECTION);
-
-        if (connectionHeaderValues == null) {
+        CharSequence connectionHeader = request.headers().get(HttpHeaderNames.CONNECTION);
+        if (connectionHeader == null) {
             return false;
         }
 
-        final StringBuilder concatenatedConnectionValue = new StringBuilder(connectionHeaderValues.size() * 10);
-        for (CharSequence connectionHeaderValue : connectionHeaderValues) {
-            concatenatedConnectionValue.append(connectionHeaderValue).append(COMMA);
-        }
-        concatenatedConnectionValue.setLength(concatenatedConnectionValue.length() - 1);
-
         // Make sure the CONNECTION header contains UPGRADE as well as all protocol-specific headers.
         Collection<CharSequence> requiredHeaders = upgradeCodec.requiredUpgradeHeaders();
-        List<CharSequence> values = splitHeader(concatenatedConnectionValue);
+        List<CharSequence> values = splitHeader(connectionHeader);
         if (!containsContentEqualsIgnoreCase(values, HttpHeaderNames.UPGRADE) ||
-                !containsAllContentEqualsIgnoreCase(values, requiredHeaders)) {
+            !containsAllContentEqualsIgnoreCase(values, requiredHeaders)) {
             return false;
         }
 

@@ -20,7 +20,6 @@ import com.google.protobuf.ExtensionRegistryLite;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageLite;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.ChannelHandler.Sharable;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
@@ -28,7 +27,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.LengthFieldBasedFrameDecoder;
 import io.netty.handler.codec.LengthFieldPrepender;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.util.internal.ObjectUtil;
 
 import java.util.List;
 
@@ -96,7 +94,10 @@ public class ProtobufDecoder extends MessageToMessageDecoder<ByteBuf> {
     }
 
     public ProtobufDecoder(MessageLite prototype, ExtensionRegistryLite extensionRegistry) {
-        this.prototype = ObjectUtil.checkNotNull(prototype, "prototype").getDefaultInstanceForType();
+        if (prototype == null) {
+            throw new NullPointerException("prototype");
+        }
+        this.prototype = prototype.getDefaultInstanceForType();
         this.extensionRegistry = extensionRegistry;
     }
 
@@ -110,7 +111,8 @@ public class ProtobufDecoder extends MessageToMessageDecoder<ByteBuf> {
             array = msg.array();
             offset = msg.arrayOffset() + msg.readerIndex();
         } else {
-            array = ByteBufUtil.getBytes(msg, msg.readerIndex(), length, false);
+            array = new byte[length];
+            msg.getBytes(msg.readerIndex(), array, 0, length);
             offset = 0;
         }
 

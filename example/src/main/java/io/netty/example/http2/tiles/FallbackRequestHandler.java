@@ -16,7 +16,6 @@
 
 package io.netty.example.http2.tiles;
 
-import static io.netty.buffer.Unpooled.EMPTY_BUFFER;
 import static io.netty.buffer.Unpooled.copiedBuffer;
 import static io.netty.buffer.Unpooled.unreleasableBuffer;
 import static io.netty.handler.codec.http.HttpHeaderNames.CONTENT_LENGTH;
@@ -48,7 +47,7 @@ public final class FallbackRequestHandler extends SimpleChannelInboundHandler<Ht
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, HttpRequest req) throws Exception {
         if (HttpUtil.is100ContinueExpected(req)) {
-            ctx.write(new DefaultFullHttpResponse(HTTP_1_1, CONTINUE, EMPTY_BUFFER));
+            ctx.write(new DefaultFullHttpResponse(HTTP_1_1, CONTINUE));
         }
 
         ByteBuf content = ctx.alloc().buffer();

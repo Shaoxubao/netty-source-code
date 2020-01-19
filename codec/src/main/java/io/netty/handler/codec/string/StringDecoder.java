@@ -23,7 +23,6 @@ import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.DelimiterBasedFrameDecoder;
 import io.netty.handler.codec.LineBasedFrameDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
-import io.netty.util.internal.ObjectUtil;
 
 import java.nio.charset.Charset;
 import java.util.List;
@@ -69,7 +68,10 @@ public class StringDecoder extends MessageToMessageDecoder<ByteBuf> {
      * Creates a new instance with the specified character set.
      */
     public StringDecoder(Charset charset) {
-        this.charset = ObjectUtil.checkNotNull(charset, "charset");
+        if (charset == null) {
+            throw new NullPointerException("charset");
+        }
+        this.charset = charset;
     }
 
     @Override

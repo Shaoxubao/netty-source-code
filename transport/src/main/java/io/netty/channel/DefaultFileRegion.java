@@ -17,7 +17,6 @@ package io.netty.channel;
 
 import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.IllegalReferenceCountException;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -26,8 +25,6 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
-
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
 
 /**
  * Default {@link FileRegion} implementation which transfer data from a {@link FileChannel} or {@link File}.
@@ -47,29 +44,47 @@ public class DefaultFileRegion extends AbstractReferenceCounted implements FileR
     /**
      * Create a new instance
      *
-     * @param file      the {@link FileChannel} which should be transferred
+     * @param file      the {@link FileChannel} which should be transfered
      * @param position  the position from which the transfer should start
      * @param count     the number of bytes to transfer
      */
     public DefaultFileRegion(FileChannel file, long position, long count) {
-        this.file = ObjectUtil.checkNotNull(file, "file");
-        this.position = checkPositiveOrZero(position, "position");
-        this.count = checkPositiveOrZero(count, "count");
-        this.f = null;
+        if (file == null) {
+            throw new NullPointerException("file");
+        }
+        if (position < 0) {
+            throw new IllegalArgumentException("position must be >= 0 but was " + position);
+        }
+        if (count < 0) {
+            throw new IllegalArgumentException("count must be >= 0 but was " + count);
+        }
+        this.file = file;
+        this.position = position;
+        this.count = count;
+        f = null;
     }
 
     /**
      * Create a new instance using the given {@link File}. The {@link File} will be opened lazily or
      * explicitly via {@link #open()}.
      *
-     * @param f         the {@link File} which should be transferred
+     * @param f         the {@link File} which should be transfered
      * @param position  the position from which the transfer should start
      * @param count     the number of bytes to transfer
      */
     public DefaultFileRegion(File f, long position, long count) {
-        this.f = ObjectUtil.checkNotNull(f, "f");
-        this.position = checkPositiveOrZero(position, "position");
-        this.count = checkPositiveOrZero(count, "count");
+        if (f == null) {
+            throw new NullPointerException("f");
+        }
+        if (position < 0) {
+            throw new IllegalArgumentException("position must be >= 0 but was " + position);
+        }
+        if (count < 0) {
+            throw new IllegalArgumentException("count must be >= 0 but was " + count);
+        }
+        this.position = position;
+        this.count = count;
+        this.f = f;
     }
 
     /**
@@ -130,12 +145,6 @@ public class DefaultFileRegion extends AbstractReferenceCounted implements FileR
         long written = file.transferTo(this.position + position, count, target);
         if (written > 0) {
             transferred += written;
-        } else if (written == 0) {
-            // If the amount of written data is 0 we need to check if the requested count is bigger then the
-            // actual file itself as it may have been truncated on disk.
-            //
-            // See https://github.com/netty/netty/issues/8868
-            validate(this, position);
         }
         return written;
     }
@@ -152,7 +161,9 @@ public class DefaultFileRegion extends AbstractReferenceCounted implements FileR
         try {
             file.close();
         } catch (IOException e) {
-            logger.warn("Failed to close a file.", e);
+            if (logger.isWarnEnabled()) {
+                logger.warn("Failed to close a file.", e);
+            }
         }
     }
 
@@ -176,17 +187,5 @@ public class DefaultFileRegion extends AbstractReferenceCounted implements FileR
     @Override
     public FileRegion touch(Object hint) {
         return this;
-    }
-
-    static void validate(DefaultFileRegion region, long position) throws IOException {
-        // If the amount of written data is 0 we need to check if the requested count is bigger then the
-        // actual file itself as it may have been truncated on disk.
-        //
-        // See https://github.com/netty/netty/issues/8868
-        long size = region.file.size();
-        long count = region.count - position;
-        if (region.position + count + position > size) {
-            throw new IOException("Underlying file size " + size + " smaller then requested count " + region.count);
-        }
     }
 }

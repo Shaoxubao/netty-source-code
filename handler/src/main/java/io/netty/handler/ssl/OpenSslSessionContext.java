@@ -15,10 +15,10 @@
  */
 package io.netty.handler.ssl;
 
+import io.netty.util.internal.ObjectUtil;
 import io.netty.internal.tcnative.SSL;
 import io.netty.internal.tcnative.SSLContext;
 import io.netty.internal.tcnative.SessionTicketKey;
-import io.netty.util.internal.ObjectUtil;
 
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSessionContext;
@@ -54,7 +54,9 @@ public abstract class OpenSslSessionContext implements SSLSessionContext {
 
     @Override
     public SSLSession getSession(byte[] bytes) {
-        ObjectUtil.checkNotNull(bytes, "bytes");
+        if (bytes == null) {
+            throw new NullPointerException("bytes");
+        }
         return null;
     }
 

@@ -75,7 +75,7 @@ public class KQueueServerSocketChannelConfig extends KQueueServerChannelConfig i
 
     public KQueueServerSocketChannelConfig setReusePort(boolean reusePort) {
         try {
-            ((KQueueServerSocketChannel) channel).socket.setReusePort(reusePort);
+            channel.socket.setReusePort(reusePort);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -84,7 +84,7 @@ public class KQueueServerSocketChannelConfig extends KQueueServerChannelConfig i
 
     public boolean isReusePort() {
         try {
-            return ((KQueueServerSocketChannel) channel).socket.isReusePort();
+            return channel.socket.isReusePort();
         } catch (IOException e) {
             throw new ChannelException(e);
         }
@@ -92,7 +92,7 @@ public class KQueueServerSocketChannelConfig extends KQueueServerChannelConfig i
 
     public KQueueServerSocketChannelConfig setAcceptFilter(AcceptFilter acceptFilter) {
         try {
-            ((KQueueServerSocketChannel) channel).socket.setAcceptFilter(acceptFilter);
+            channel.socket.setAcceptFilter(acceptFilter);
             return this;
         } catch (IOException e) {
             throw new ChannelException(e);
@@ -101,7 +101,7 @@ public class KQueueServerSocketChannelConfig extends KQueueServerChannelConfig i
 
     public AcceptFilter getAcceptFilter() {
         try {
-            return ((KQueueServerSocketChannel) channel).socket.getAcceptFilter();
+            return channel.socket.getAcceptFilter();
         } catch (IOException e) {
             throw new ChannelException(e);
         }

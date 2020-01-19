@@ -18,7 +18,6 @@ package io.netty.handler.codec.compression;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -30,11 +29,6 @@ public class SnappyFrameDecoderTest {
     @Before
     public void initChannel() {
         channel = new EmbeddedChannel(new SnappyFrameDecoder());
-    }
-
-    @After
-    public void tearDown() {
-        assertFalse(channel.finishAndReleaseAll());
     }
 
     @Test(expected = DecompressionException.class)
@@ -98,7 +92,7 @@ public class SnappyFrameDecoderTest {
            -0x7f, 0x05, 0x00, 0x00, 'n', 'e', 't', 't', 'y'
         });
 
-        assertFalse(channel.writeInbound(in));
+        channel.writeInbound(in);
         assertNull(channel.readInbound());
 
         assertFalse(in.isReadable());
@@ -111,7 +105,7 @@ public class SnappyFrameDecoderTest {
             0x01, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 'n', 'e', 't', 't', 'y'
         });
 
-        assertTrue(channel.writeInbound(in));
+        channel.writeInbound(in);
 
         ByteBuf expected = Unpooled.wrappedBuffer(new byte[] { 'n', 'e', 't', 't', 'y' });
         ByteBuf actual = channel.readInbound();
@@ -131,7 +125,7 @@ public class SnappyFrameDecoderTest {
                   0x6e, 0x65, 0x74, 0x74, 0x79 // "netty"
         });
 
-        assertTrue(channel.writeInbound(in));
+        channel.writeInbound(in);
 
         ByteBuf expected = Unpooled.wrappedBuffer(new byte[] { 'n', 'e', 't', 't', 'y' });
         ByteBuf actual = channel.readInbound();
@@ -148,38 +142,26 @@ public class SnappyFrameDecoderTest {
     @Test(expected = DecompressionException.class)
     public void testInvalidChecksumThrowsException() throws Exception {
         EmbeddedChannel channel = new EmbeddedChannel(new SnappyFrameDecoder(true));
-        try {
-            // checksum here is presented as 0
-            ByteBuf in = Unpooled.wrappedBuffer(new byte[]{
-                    (byte) 0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
-                    0x01, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 'n', 'e', 't', 't', 'y'
-            });
 
-            channel.writeInbound(in);
-        } finally {
-            channel.finishAndReleaseAll();
-        }
+        // checksum here is presented as 0
+        ByteBuf in = Unpooled.wrappedBuffer(new byte[] {
+           (byte) 0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
+            0x01, 0x09, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 'n', 'e', 't', 't', 'y'
+        });
+
+        channel.writeInbound(in);
     }
 
     @Test
     public void testInvalidChecksumDoesNotThrowException() throws Exception {
         EmbeddedChannel channel = new EmbeddedChannel(new SnappyFrameDecoder(true));
-        try {
-            // checksum here is presented as a282986f (little endian)
-            ByteBuf in = Unpooled.wrappedBuffer(new byte[]{
-                    (byte) 0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
-                    0x01, 0x09, 0x00, 0x00, 0x6f, -0x68, -0x7e, -0x5e, 'n', 'e', 't', 't', 'y'
-            });
 
-            assertTrue(channel.writeInbound(in));
-            ByteBuf expected = Unpooled.wrappedBuffer(new byte[] { 'n', 'e', 't', 't', 'y' });
-            ByteBuf actual = channel.readInbound();
-            assertEquals(expected, actual);
+        // checksum here is presented as a282986f (little endian)
+        ByteBuf in = Unpooled.wrappedBuffer(new byte[] {
+           (byte) 0xff, 0x06, 0x00, 0x00, 0x73, 0x4e, 0x61, 0x50, 0x70, 0x59,
+            0x01, 0x09, 0x00, 0x00, 0x6f, -0x68, -0x7e, -0x5e, 'n', 'e', 't', 't', 'y'
+        });
 
-            expected.release();
-            actual.release();
-        } finally {
-            channel.finishAndReleaseAll();
-        }
+        channel.writeInbound(in);
     }
 }

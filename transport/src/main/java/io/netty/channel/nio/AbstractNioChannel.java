@@ -29,6 +29,7 @@ import io.netty.channel.ConnectTimeoutException;
 import io.netty.channel.EventLoop;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.ReferenceCounted;
+import io.netty.util.internal.ThrowableUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -49,6 +50,9 @@ public abstract class AbstractNioChannel extends AbstractChannel {
 
     private static final InternalLogger logger =
             InternalLoggerFactory.getInstance(AbstractNioChannel.class);
+
+    private static final ClosedChannelException DO_CLOSE_CLOSED_CHANNEL_EXCEPTION = ThrowableUtil.unknownStackTrace(
+            new ClosedChannelException(), AbstractNioChannel.class, "doClose()");
 
     private final SelectableChannel ch;
     protected final int readInterestOp;
@@ -79,17 +83,17 @@ public abstract class AbstractNioChannel extends AbstractChannel {
     protected AbstractNioChannel(Channel parent, SelectableChannel ch, int readInterestOp) {
         super(parent);
         this.ch = ch;
-        // 我们看到这里只是保存了 SelectionKey.OP_READ 这个信息，在后面的时候会用到
         this.readInterestOp = readInterestOp;
         try {
-            // 设置 channel 的非阻塞模式
             ch.configureBlocking(false);
         } catch (IOException e) {
             try {
                 ch.close();
             } catch (IOException e2) {
-                logger.warn(
+                if (logger.isWarnEnabled()) {
+                    logger.warn(
                             "Failed to close a partially initialized socket.", e2);
+                }
             }
 
             throw new ChannelException("Failed to enter non-blocking mode.", e);
@@ -247,19 +251,12 @@ public abstract class AbstractNioChannel extends AbstractChannel {
                 }
 
                 boolean wasActive = isActive();
-                // 大家自己点进去看 doConnect 方法
-                // 这一步会做 JDK 底层的 SocketChannel connect，然后设置 interestOps 为 SelectionKey.OP_CONNECT
-                // 返回值代表是否已经连接成功
                 if (doConnect(remoteAddress, localAddress)) {
-
-                    // 处理连接成功的情况
                     fulfillConnectPromise(promise, wasActive);
                 } else {
                     connectPromise = promise;
                     requestedRemoteAddress = remoteAddress;
 
-                    // 下面这块代码，在处理连接超时的情况，代码很简单
-                    // 这里用到了 NioEventLoop 的定时任务的功能
                     // Schedule connect timeout.
                     int connectTimeoutMillis = config().getConnectTimeoutMillis();
                     if (connectTimeoutMillis > 0) {
@@ -386,15 +383,6 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         boolean selected = false;
         for (;;) {
             try {
-                // jdk 底层的 register() 的第三个参数是 attachment，传进去的 this 是 Netty 自己的 Channel。这步操作非常巧妙。
-                // 之前我们可能会疑惑，Selector 每次返回的是 jdk 底层的 Channel，
-                // 那么 Netty 是怎么知道它对应哪个 Netty Channel 的呢？这里我们找到了答案：Netty 通过把自己的 Channel 作为 attachment 绑定在 jdk 底层的 Channel 上，
-                // 在每次返回的时候带出来
-
-                // 附 JDK 中 Channel 的 register 方法：
-                // public final SelectionKey register(Selector sel, int ops, Object att) {...}
-                // 这里做了 JDK 底层的 register 操作，将 SocketChannel(或 ServerSocketChannel) 注册到 Selector 中，并且可以看到，这里的监听集合设置为了 0，也就是什么都不监听
-                // 当然，也就意味着，后续一定有某个地方会需要修改这个 selectionKey 的监听集合，不然啥都干不了
                 selectionKey = javaChannel().register(eventLoop().unwrappedSelector(), 0, this);
                 return;
             } catch (CancelledKeyException e) {
@@ -517,7 +505,7 @@ public abstract class AbstractNioChannel extends AbstractChannel {
         ChannelPromise promise = connectPromise;
         if (promise != null) {
             // Use tryFailure() instead of setFailure() to avoid the race against cancel().
-            promise.tryFailure(new ClosedChannelException());
+            promise.tryFailure(DO_CLOSE_CLOSED_CHANNEL_EXCEPTION);
             connectPromise = null;
         }
 

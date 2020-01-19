@@ -15,8 +15,6 @@
  */
 package io.netty.buffer;
 
-import io.netty.util.internal.ObjectUtil;
-
 import java.nio.ByteOrder;
 
 /**
@@ -33,7 +31,10 @@ final class UnreleasableByteBuf extends WrappedByteBuf {
 
     @Override
     public ByteBuf order(ByteOrder endianness) {
-        if (ObjectUtil.checkNotNull(endianness, "endianness") == order()) {
+        if (endianness == null) {
+            throw new NullPointerException("endianness");
+        }
+        if (endianness == order()) {
             return this;
         }
 

@@ -16,11 +16,8 @@
 
 package io.netty.buffer;
 
-import static io.netty.util.internal.ObjectUtil.checkPositiveOrZero;
-
 import io.netty.util.ByteProcessor;
 import io.netty.util.internal.EmptyArrays;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 import io.netty.util.internal.StringUtil;
 
@@ -65,7 +62,11 @@ public final class EmptyByteBuf extends ByteBuf {
     }
 
     private EmptyByteBuf(ByteBufAllocator alloc, ByteOrder order) {
-        this.alloc = ObjectUtil.checkNotNull(alloc, "alloc");
+        if (alloc == null) {
+            throw new NullPointerException("alloc");
+        }
+
+        this.alloc = alloc;
         this.order = order;
         str = StringUtil.simpleClassName(this) + (order == ByteOrder.BIG_ENDIAN? "BE" : "LE");
     }
@@ -117,7 +118,10 @@ public final class EmptyByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf order(ByteOrder endianness) {
-        if (ObjectUtil.checkNotNull(endianness, "endianness") == order()) {
+        if (endianness == null) {
+            throw new NullPointerException("endianness");
+        }
+        if (endianness == order()) {
             return this;
         }
 
@@ -219,7 +223,9 @@ public final class EmptyByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf ensureWritable(int minWritableBytes) {
-        checkPositiveOrZero(minWritableBytes, "minWritableBytes");
+        if (minWritableBytes < 0) {
+            throw new IllegalArgumentException("minWritableBytes: " + minWritableBytes + " (expected: >= 0)");
+        }
         if (minWritableBytes != 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -228,7 +234,9 @@ public final class EmptyByteBuf extends ByteBuf {
 
     @Override
     public int ensureWritable(int minWritableBytes, boolean force) {
-        checkPositiveOrZero(minWritableBytes, "minWritableBytes");
+        if (minWritableBytes < 0) {
+            throw new IllegalArgumentException("minWritableBytes: " + minWritableBytes + " (expected: >= 0)");
+        }
 
         if (minWritableBytes == 0) {
             return 0;
@@ -678,7 +686,7 @@ public final class EmptyByteBuf extends ByteBuf {
     @Override
     public CharSequence readCharSequence(int length, Charset charset) {
         checkLength(length);
-        return StringUtil.EMPTY_STRING;
+        return null;
     }
 
     @Override
@@ -957,11 +965,6 @@ public final class EmptyByteBuf extends ByteBuf {
     }
 
     @Override
-    public boolean isContiguous() {
-        return true;
-    }
-
-    @Override
     public String toString(Charset charset) {
         return "";
     }
@@ -1045,7 +1048,9 @@ public final class EmptyByteBuf extends ByteBuf {
     }
 
     private ByteBuf checkIndex(int index, int length) {
-        checkPositiveOrZero(length, "length");
+        if (length < 0) {
+            throw new IllegalArgumentException("length: " + length);
+        }
         if (index != 0 || length != 0) {
             throw new IndexOutOfBoundsException();
         }
@@ -1053,7 +1058,9 @@ public final class EmptyByteBuf extends ByteBuf {
     }
 
     private ByteBuf checkLength(int length) {
-        checkPositiveOrZero(length, "length");
+        if (length < 0) {
+            throw new IllegalArgumentException("length: " + length + " (expected: >= 0)");
+        }
         if (length != 0) {
             throw new IndexOutOfBoundsException();
         }

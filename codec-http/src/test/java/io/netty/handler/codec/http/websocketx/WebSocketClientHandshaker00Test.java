@@ -22,10 +22,8 @@ import java.net.URI;
 
 public class WebSocketClientHandshaker00Test extends WebSocketClientHandshakerTest {
     @Override
-    protected WebSocketClientHandshaker newHandshaker(URI uri, String subprotocol, HttpHeaders headers,
-                                                      boolean absoluteUpgradeUrl) {
-        return new WebSocketClientHandshaker00(uri, WebSocketVersion.V00, subprotocol, headers,
-          1024, 10000, absoluteUpgradeUrl);
+    protected WebSocketClientHandshaker newHandshaker(URI uri, String subprotocol, HttpHeaders headers) {
+        return new WebSocketClientHandshaker00(uri, WebSocketVersion.V00, subprotocol, headers, 1024);
     }
 
     @Override
@@ -39,11 +37,12 @@ public class WebSocketClientHandshaker00Test extends WebSocketClientHandshakerTe
     }
 
     @Override
-    protected CharSequence[] getHandshakeRequiredHeaderNames() {
+    protected CharSequence[] getHandshakeHeaderNames() {
         return new CharSequence[] {
                 HttpHeaderNames.CONNECTION,
                 HttpHeaderNames.UPGRADE,
                 HttpHeaderNames.HOST,
+                HttpHeaderNames.ORIGIN,
                 HttpHeaderNames.SEC_WEBSOCKET_KEY1,
                 HttpHeaderNames.SEC_WEBSOCKET_KEY2,
         };

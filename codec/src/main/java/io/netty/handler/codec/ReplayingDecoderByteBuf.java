@@ -15,6 +15,14 @@
  */
 package io.netty.handler.codec;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.SwappedByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.util.ByteProcessor;
+import io.netty.util.Signal;
+import io.netty.util.internal.StringUtil;
+
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
@@ -23,15 +31,6 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.nio.charset.Charset;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufAllocator;
-import io.netty.buffer.SwappedByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.util.ByteProcessor;
-import io.netty.util.Signal;
-import io.netty.util.internal.ObjectUtil;
-import io.netty.util.internal.StringUtil;
 
 /**
  * Special {@link ByteBuf} implementation which is used by the {@link ReplayingDecoder}
@@ -473,7 +472,10 @@ final class ReplayingDecoderByteBuf extends ByteBuf {
 
     @Override
     public ByteBuf order(ByteOrder endianness) {
-        if (ObjectUtil.checkNotNull(endianness, "endianness") == order()) {
+        if (endianness == null) {
+            throw new NullPointerException("endianness");
+        }
+        if (endianness == order()) {
             return this;
         }
 
@@ -486,12 +488,12 @@ final class ReplayingDecoderByteBuf extends ByteBuf {
 
     @Override
     public boolean isReadable() {
-        return !terminated || buffer.isReadable();
+        return terminated? buffer.isReadable() : true;
     }
 
     @Override
     public boolean isReadable(int size) {
-        return !terminated || buffer.isReadable(size);
+        return terminated? buffer.isReadable(size) : true;
     }
 
     @Override

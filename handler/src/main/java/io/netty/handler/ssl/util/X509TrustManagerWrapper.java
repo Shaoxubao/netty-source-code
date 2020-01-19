@@ -15,8 +15,6 @@
  */
 package io.netty.handler.ssl.util;
 
-import io.netty.util.internal.SuppressJava6Requirement;
-
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.X509ExtendedTrustManager;
 import javax.net.ssl.X509TrustManager;
@@ -26,7 +24,6 @@ import java.security.cert.X509Certificate;
 
 import static io.netty.util.internal.ObjectUtil.*;
 
-@SuppressJava6Requirement(reason = "Usage guarded by java version check")
 final class X509TrustManagerWrapper extends X509ExtendedTrustManager {
 
     private final X509TrustManager delegate;

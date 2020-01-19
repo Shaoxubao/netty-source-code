@@ -19,7 +19,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.FileRegion;
 import io.netty.channel.RecvByteBufAllocator;
-import io.netty.util.internal.ObjectUtil;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,10 +31,7 @@ import java.nio.channels.WritableByteChannel;
 
 /**
  * Abstract base class for OIO Channels that are based on streams.
- *
- * @deprecated use NIO / EPOLL / KQUEUE transport.
  */
-@Deprecated
 public abstract class OioByteStreamChannel extends AbstractOioByteChannel {
 
     private static final InputStream CLOSED_IN = new InputStream() {
@@ -76,8 +72,14 @@ public abstract class OioByteStreamChannel extends AbstractOioByteChannel {
         if (this.os != null) {
             throw new IllegalStateException("output was set already");
         }
-        this.is = ObjectUtil.checkNotNull(is, "is");
-        this.os = ObjectUtil.checkNotNull(os, "os");
+        if (is == null) {
+            throw new NullPointerException("is");
+        }
+        if (os == null) {
+            throw new NullPointerException("os");
+        }
+        this.is = is;
+        this.os = os;
     }
 
     @Override

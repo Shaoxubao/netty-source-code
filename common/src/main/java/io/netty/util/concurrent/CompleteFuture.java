@@ -16,8 +16,6 @@
 
 package io.netty.util.concurrent;
 
-import io.netty.util.internal.ObjectUtil;
-
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -45,15 +43,19 @@ public abstract class CompleteFuture<V> extends AbstractFuture<V> {
 
     @Override
     public Future<V> addListener(GenericFutureListener<? extends Future<? super V>> listener) {
-        DefaultPromise.notifyListener(executor(), this, ObjectUtil.checkNotNull(listener, "listener"));
+        if (listener == null) {
+            throw new NullPointerException("listener");
+        }
+        DefaultPromise.notifyListener(executor(), this, listener);
         return this;
     }
 
     @Override
     public Future<V> addListeners(GenericFutureListener<? extends Future<? super V>>... listeners) {
-        for (GenericFutureListener<? extends Future<? super V>> l:
-                ObjectUtil.checkNotNull(listeners, "listeners")) {
-
+        if (listeners == null) {
+            throw new NullPointerException("listeners");
+        }
+        for (GenericFutureListener<? extends Future<? super V>> l: listeners) {
             if (l == null) {
                 break;
             }

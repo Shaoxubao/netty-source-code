@@ -90,48 +90,6 @@ public class HttpContentDecoderTest {
     }
 
     @Test
-    public void testChunkedRequestDecompression() {
-        HttpResponseDecoder decoder = new HttpResponseDecoder();
-        HttpContentDecoder decompressor = new HttpContentDecompressor();
-
-        EmbeddedChannel channel = new EmbeddedChannel(decoder, decompressor, null);
-
-        String headers = "HTTP/1.1 200 OK\r\n"
-                + "Transfer-Encoding: chunked\r\n"
-                + "Trailer: My-Trailer\r\n"
-                + "Content-Encoding: gzip\r\n\r\n";
-
-        channel.writeInbound(Unpooled.copiedBuffer(headers.getBytes(CharsetUtil.US_ASCII)));
-
-        String chunkLength = Integer.toHexString(GZ_HELLO_WORLD.length);
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(chunkLength + "\r\n", CharsetUtil.US_ASCII)));
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(GZ_HELLO_WORLD)));
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer("\r\n".getBytes(CharsetUtil.US_ASCII))));
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer("0\r\n", CharsetUtil.US_ASCII)));
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer("My-Trailer: 42\r\n\r\n\r\n", CharsetUtil.US_ASCII)));
-
-        Object ob1 = channel.readInbound();
-        assertThat(ob1, is(instanceOf(DefaultHttpResponse.class)));
-
-        Object ob2 = channel.readInbound();
-        assertThat(ob1, is(instanceOf(DefaultHttpResponse.class)));
-        HttpContent content = (HttpContent) ob2;
-        assertEquals(HELLO_WORLD, content.content().toString(CharsetUtil.US_ASCII));
-        content.release();
-
-        Object ob3 = channel.readInbound();
-        assertThat(ob1, is(instanceOf(DefaultHttpResponse.class)));
-        LastHttpContent lastContent = (LastHttpContent) ob3;
-        assertNotNull(lastContent.decoderResult());
-        assertTrue(lastContent.decoderResult().isSuccess());
-        assertFalse(lastContent.trailingHeaders().isEmpty());
-        assertEquals("42", lastContent.trailingHeaders().get("My-Trailer"));
-        assertHasInboundMessages(channel, false);
-        assertHasOutboundMessages(channel, false);
-        assertFalse(channel.finish());
-    }
-
-    @Test
     public void testResponseDecompression() {
         // baseline test: response decoder, content decompressor && request aggregator work as expected
         HttpResponseDecoder decoder = new HttpResponseDecoder();
@@ -178,7 +136,7 @@ public class HttpContentDecoderTest {
         assertThat(o, is(instanceOf(FullHttpResponse.class)));
         FullHttpResponse r = (FullHttpResponse) o;
         assertEquals(100, r.status().code());
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(GZ_HELLO_WORLD)));
+        assertTrue(channel.writeInbound(Unpooled.wrappedBuffer(GZ_HELLO_WORLD)));
         r.release();
 
         assertHasInboundMessages(channel, true);
@@ -205,7 +163,7 @@ public class HttpContentDecoderTest {
         FullHttpResponse r = (FullHttpResponse) o;
         assertEquals(100, r.status().code());
         r.release();
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(GZ_HELLO_WORLD)));
+        assertTrue(channel.writeInbound(Unpooled.wrappedBuffer(GZ_HELLO_WORLD)));
 
         assertHasInboundMessages(channel, true);
         assertHasOutboundMessages(channel, false);
@@ -232,7 +190,7 @@ public class HttpContentDecoderTest {
         FullHttpResponse r = (FullHttpResponse) o;
         assertEquals(100, r.status().code());
         r.release();
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(GZ_HELLO_WORLD)));
+        assertTrue(channel.writeInbound(Unpooled.wrappedBuffer(GZ_HELLO_WORLD)));
 
         assertHasInboundMessages(channel, true);
         assertHasOutboundMessages(channel, false);
@@ -259,7 +217,7 @@ public class HttpContentDecoderTest {
         FullHttpResponse r = (FullHttpResponse) o;
         assertEquals(100, r.status().code());
         r.release();
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(GZ_HELLO_WORLD)));
+        assertTrue(channel.writeInbound(Unpooled.wrappedBuffer(GZ_HELLO_WORLD)));
 
         assertHasInboundMessages(channel, true);
         assertHasOutboundMessages(channel, false);
@@ -566,7 +524,7 @@ public class HttpContentDecoderTest {
     private static byte[] gzDecompress(byte[] input) {
         ZlibDecoder decoder = ZlibCodecFactory.newZlibDecoder(ZlibWrapper.GZIP);
         EmbeddedChannel channel = new EmbeddedChannel(decoder);
-        assertTrue(channel.writeInbound(Unpooled.copiedBuffer(input)));
+        assertTrue(channel.writeInbound(Unpooled.wrappedBuffer(input)));
         assertTrue(channel.finish()); // close the channel to indicate end-of-data
 
         int outputSize = 0;

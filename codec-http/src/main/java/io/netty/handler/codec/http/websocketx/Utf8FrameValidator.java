@@ -35,65 +35,59 @@ public class Utf8FrameValidator extends ChannelInboundHandlerAdapter {
         if (msg instanceof WebSocketFrame) {
             WebSocketFrame frame = (WebSocketFrame) msg;
 
-            try {
-                // Processing for possible fragmented messages for text and binary
-                // frames
-                if (((WebSocketFrame) msg).isFinalFragment()) {
-                    // Final frame of the sequence. Apparently ping frames are
-                    // allowed in the middle of a fragmented message
-                    if (!(frame instanceof PingWebSocketFrame)) {
-                        fragmentedFramesCount = 0;
+            // Processing for possible fragmented messages for text and binary
+            // frames
+            if (((WebSocketFrame) msg).isFinalFragment()) {
+                // Final frame of the sequence. Apparently ping frames are
+                // allowed in the middle of a fragmented message
+                if (!(frame instanceof PingWebSocketFrame)) {
+                    fragmentedFramesCount = 0;
 
-                        // Check text for UTF8 correctness
-                        if ((frame instanceof TextWebSocketFrame) ||
-                                (utf8Validator != null && utf8Validator.isChecking())) {
-                            // Check UTF-8 correctness for this payload
-                            checkUTF8String(frame.content());
+                    // Check text for UTF8 correctness
+                    if ((frame instanceof TextWebSocketFrame) ||
+                            (utf8Validator != null && utf8Validator.isChecking())) {
+                        // Check UTF-8 correctness for this payload
+                        checkUTF8String(ctx, frame.content());
 
-                            // This does a second check to make sure UTF-8
-                            // correctness for entire text message
-                            utf8Validator.finish();
-                        }
+                        // This does a second check to make sure UTF-8
+                        // correctness for entire text message
+                        utf8Validator.finish();
+                    }
+                }
+            } else {
+                // Not final frame so we can expect more frames in the
+                // fragmented sequence
+                if (fragmentedFramesCount == 0) {
+                    // First text or binary frame for a fragmented set
+                    if (frame instanceof TextWebSocketFrame) {
+                        checkUTF8String(ctx, frame.content());
                     }
                 } else {
-                    // Not final frame so we can expect more frames in the
-                    // fragmented sequence
-                    if (fragmentedFramesCount == 0) {
-                        // First text or binary frame for a fragmented set
-                        if (frame instanceof TextWebSocketFrame) {
-                            checkUTF8String(frame.content());
-                        }
-                    } else {
-                        // Subsequent frames - only check if init frame is text
-                        if (utf8Validator != null && utf8Validator.isChecking()) {
-                            checkUTF8String(frame.content());
-                        }
+                    // Subsequent frames - only check if init frame is text
+                    if (utf8Validator != null && utf8Validator.isChecking()) {
+                        checkUTF8String(ctx, frame.content());
                     }
-
-                    // Increment counter
-                    fragmentedFramesCount++;
                 }
-            } catch (CorruptedWebSocketFrameException e) {
-                frame.release();
-                throw e;
+
+                // Increment counter
+                fragmentedFramesCount++;
             }
         }
 
         super.channelRead(ctx, msg);
     }
 
-    private void checkUTF8String(ByteBuf buffer) {
-        if (utf8Validator == null) {
-            utf8Validator = new Utf8Validator();
+    private void checkUTF8String(ChannelHandlerContext ctx, ByteBuf buffer) {
+        try {
+            if (utf8Validator == null) {
+                utf8Validator = new Utf8Validator();
+            }
+            utf8Validator.check(buffer);
+        } catch (CorruptedFrameException ex) {
+            if (ctx.channel().isActive()) {
+                ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
+            }
         }
-        utf8Validator.check(buffer);
     }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        if (cause instanceof CorruptedFrameException && ctx.channel().isOpen()) {
-            ctx.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
-        }
-        super.exceptionCaught(ctx, cause);
-    }
 }

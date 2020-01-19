@@ -92,14 +92,4 @@ public class DefaultBinaryMemcacheRequest extends AbstractBinaryMemcacheMessage 
         super.touch(hint);
         return this;
     }
-
-    /**
-     * Copies special metadata hold by this instance to the provided instance
-     *
-     * @param dst The instance where to copy the metadata of this instance to
-     */
-    void copyMeta(DefaultBinaryMemcacheRequest dst) {
-        super.copyMeta(dst);
-        dst.reserved = reserved;
-    }
 }

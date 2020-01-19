@@ -80,7 +80,7 @@ public final class DefaultHttp2UnknownFrame extends DefaultByteBufHolder impleme
 
     @Override
     public DefaultHttp2UnknownFrame replace(ByteBuf content) {
-        return new DefaultHttp2UnknownFrame(frameType, flags, content).stream(stream);
+        return new DefaultHttp2UnknownFrame(frameType, flags, content).stream(stream());
     }
 
     @Override
@@ -97,8 +97,8 @@ public final class DefaultHttp2UnknownFrame extends DefaultByteBufHolder impleme
 
     @Override
     public String toString() {
-        return StringUtil.simpleClassName(this) + "(frameType=" + frameType + ", stream=" + stream +
-               ", flags=" + flags + ", content=" + contentToString() + ')';
+        return StringUtil.simpleClassName(this) + "(frameType=" + frameType() + ", stream=" + stream() +
+                ", flags=" + flags() + ", content=" + contentToString() + ')';
     }
 
     @Override
@@ -119,20 +119,18 @@ public final class DefaultHttp2UnknownFrame extends DefaultByteBufHolder impleme
             return false;
         }
         DefaultHttp2UnknownFrame other = (DefaultHttp2UnknownFrame) o;
-        Http2FrameStream otherStream = other.stream();
-        return (stream == otherStream || otherStream != null && otherStream.equals(stream))
-               && flags.equals(other.flags())
-               && frameType == other.frameType()
-               && super.equals(other);
+        return super.equals(other) && flags().equals(other.flags())
+                && frameType() == other.frameType() && (stream() == null && other.stream() == null) ||
+                stream().equals(other.stream());
     }
 
     @Override
     public int hashCode() {
         int hash = super.hashCode();
-        hash = hash * 31 + frameType;
-        hash = hash * 31 + flags.hashCode();
-        if (stream != null) {
-            hash = hash * 31 + stream.hashCode();
+        hash = hash * 31 + frameType();
+        hash = hash * 31 + flags().hashCode();
+        if (stream() != null) {
+            hash = hash * 31 + stream().hashCode();
         }
 
         return hash;

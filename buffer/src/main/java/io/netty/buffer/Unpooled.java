@@ -15,15 +15,15 @@
  */
 package io.netty.buffer;
 
-import io.netty.buffer.CompositeByteBuf.ByteWrapper;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.CharBuffer;
 import java.nio.charset.Charset;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 
 /**
@@ -220,7 +220,7 @@ public final class Unpooled {
      * Creates a new buffer which wraps the specified buffer's readable bytes.
      * A modification on the specified buffer's content will be visible to the
      * returned buffer.
-     * @param buffer The buffer to wrap. Reference count ownership of this variable is transferred to this method.
+     * @param buffer The buffer to wrap. Reference count ownership of this variable is transfered to this method.
      * @return The readable portion of the {@code buffer}, or an empty buffer if there is no readable portion.
      * The caller is responsible for releasing this buffer.
      */
@@ -246,7 +246,7 @@ public final class Unpooled {
      * Creates a new big-endian composite buffer which wraps the readable bytes of the
      * specified buffers without copying them.  A modification on the content
      * of the specified buffers will be visible to the returned buffer.
-     * @param buffers The buffers to wrap. Reference count ownership of all variables is transferred to this method.
+     * @param buffers The buffers to wrap. Reference count ownership of all variables is transfered to this method.
      * @return The readable portion of the {@code buffers}. The caller is responsible for releasing this buffer.
      */
     public static ByteBuf wrappedBuffer(ByteBuf... buffers) {
@@ -262,37 +262,38 @@ public final class Unpooled {
         return wrappedBuffer(buffers.length, buffers);
     }
 
-    static <T> ByteBuf wrappedBuffer(int maxNumComponents, ByteWrapper<T> wrapper, T[] array) {
-        switch (array.length) {
-        case 0:
-            break;
-        case 1:
-            if (!wrapper.isEmpty(array[0])) {
-                return wrapper.wrap(array[0]);
-            }
-            break;
-        default:
-            for (int i = 0, len = array.length; i < len; i++) {
-                T bytes = array[i];
-                if (bytes == null) {
-                    return EMPTY_BUFFER;
-                }
-                if (!wrapper.isEmpty(bytes)) {
-                    return new CompositeByteBuf(ALLOC, false, maxNumComponents, wrapper, array, i);
-                }
-            }
-        }
-
-        return EMPTY_BUFFER;
-    }
-
     /**
      * Creates a new big-endian composite buffer which wraps the specified
      * arrays without copying them.  A modification on the specified arrays'
      * content will be visible to the returned buffer.
      */
     public static ByteBuf wrappedBuffer(int maxNumComponents, byte[]... arrays) {
-        return wrappedBuffer(maxNumComponents, CompositeByteBuf.BYTE_ARRAY_WRAPPER, arrays);
+        switch (arrays.length) {
+        case 0:
+            break;
+        case 1:
+            if (arrays[0].length != 0) {
+                return wrappedBuffer(arrays[0]);
+            }
+            break;
+        default:
+            // Get the list of the component, while guessing the byte order.
+            final List<ByteBuf> components = new ArrayList<ByteBuf>(arrays.length);
+            for (byte[] a: arrays) {
+                if (a == null) {
+                    break;
+                }
+                if (a.length > 0) {
+                    components.add(wrappedBuffer(a));
+                }
+            }
+
+            if (!components.isEmpty()) {
+                return new CompositeByteBuf(ALLOC, false, maxNumComponents, components);
+            }
+        }
+
+        return EMPTY_BUFFER;
     }
 
     /**
@@ -301,7 +302,7 @@ public final class Unpooled {
      * of the specified buffers will be visible to the returned buffer.
      * @param maxNumComponents Advisement as to how many independent buffers are allowed to exist before
      * consolidation occurs.
-     * @param buffers The buffers to wrap. Reference count ownership of all variables is transferred to this method.
+     * @param buffers The buffers to wrap. Reference count ownership of all variables is transfered to this method.
      * @return The readable portion of the {@code buffers}. The caller is responsible for releasing this buffer.
      */
     public static ByteBuf wrappedBuffer(int maxNumComponents, ByteBuf... buffers) {
@@ -320,7 +321,7 @@ public final class Unpooled {
             for (int i = 0; i < buffers.length; i++) {
                 ByteBuf buf = buffers[i];
                 if (buf.isReadable()) {
-                    return new CompositeByteBuf(ALLOC, false, maxNumComponents, buffers, i);
+                    return new CompositeByteBuf(ALLOC, false, maxNumComponents, buffers, i, buffers.length);
                 }
                 buf.release();
             }
@@ -335,7 +336,32 @@ public final class Unpooled {
      * specified buffers will be visible to the returned buffer.
      */
     public static ByteBuf wrappedBuffer(int maxNumComponents, ByteBuffer... buffers) {
-        return wrappedBuffer(maxNumComponents, CompositeByteBuf.BYTE_BUFFER_WRAPPER, buffers);
+        switch (buffers.length) {
+        case 0:
+            break;
+        case 1:
+            if (buffers[0].hasRemaining()) {
+                return wrappedBuffer(buffers[0].order(BIG_ENDIAN));
+            }
+            break;
+        default:
+            // Get the list of the component, while guessing the byte order.
+            final List<ByteBuf> components = new ArrayList<ByteBuf>(buffers.length);
+            for (ByteBuffer b: buffers) {
+                if (b == null) {
+                    break;
+                }
+                if (b.remaining() > 0) {
+                    components.add(wrappedBuffer(b.order(BIG_ENDIAN)));
+                }
+            }
+
+            if (!components.isEmpty()) {
+                return new CompositeByteBuf(ALLOC, false, maxNumComponents, components);
+            }
+        }
+
+        return EMPTY_BUFFER;
     }
 
     /**
@@ -374,7 +400,7 @@ public final class Unpooled {
         if (length == 0) {
             return EMPTY_BUFFER;
         }
-        byte[] copy = PlatformDependent.allocateUninitializedArray(length);
+        byte[] copy = new byte[length];
         System.arraycopy(array, offset, copy, 0, length);
         return wrappedBuffer(copy);
     }
@@ -390,7 +416,7 @@ public final class Unpooled {
         if (length == 0) {
             return EMPTY_BUFFER;
         }
-        byte[] copy = PlatformDependent.allocateUninitializedArray(length);
+        byte[] copy = new byte[length];
         // Duplicate the buffer so we not adjust the position during our get operation.
         // See https://github.com/netty/netty/issues/3896
         ByteBuffer duplicate = buffer.duplicate();
@@ -447,7 +473,7 @@ public final class Unpooled {
             return EMPTY_BUFFER;
         }
 
-        byte[] mergedArray = PlatformDependent.allocateUninitializedArray(length);
+        byte[] mergedArray = new byte[length];
         for (int i = 0, j = 0; i < arrays.length; i ++) {
             byte[] a = arrays[i];
             System.arraycopy(a, 0, mergedArray, j, a.length);
@@ -501,7 +527,7 @@ public final class Unpooled {
             return EMPTY_BUFFER;
         }
 
-        byte[] mergedArray = PlatformDependent.allocateUninitializedArray(length);
+        byte[] mergedArray = new byte[length];
         for (int i = 0, j = 0; i < buffers.length; i ++) {
             ByteBuf b = buffers[i];
             int bLen = b.readableBytes();
@@ -556,7 +582,7 @@ public final class Unpooled {
             return EMPTY_BUFFER;
         }
 
-        byte[] mergedArray = PlatformDependent.allocateUninitializedArray(length);
+        byte[] mergedArray = new byte[length];
         for (int i = 0, j = 0; i < buffers.length; i ++) {
             // Duplicate the buffer so we not adjust the position during our get operation.
             // See https://github.com/netty/netty/issues/3896
@@ -576,7 +602,9 @@ public final class Unpooled {
      * {@code 0} and the length of the encoded string respectively.
      */
     public static ByteBuf copiedBuffer(CharSequence string, Charset charset) {
-        ObjectUtil.checkNotNull(string, "string");
+        if (string == null) {
+            throw new NullPointerException("string");
+        }
 
         if (string instanceof CharBuffer) {
             return copiedBuffer((CharBuffer) string, charset);
@@ -593,7 +621,9 @@ public final class Unpooled {
      */
     public static ByteBuf copiedBuffer(
             CharSequence string, int offset, int length, Charset charset) {
-        ObjectUtil.checkNotNull(string, "string");
+        if (string == null) {
+            throw new NullPointerException("string");
+        }
         if (length == 0) {
             return EMPTY_BUFFER;
         }
@@ -623,7 +653,9 @@ public final class Unpooled {
      * {@code 0} and the length of the encoded string respectively.
      */
     public static ByteBuf copiedBuffer(char[] array, Charset charset) {
-        ObjectUtil.checkNotNull(array, "array");
+        if (array == null) {
+            throw new NullPointerException("array");
+        }
         return copiedBuffer(array, 0, array.length, charset);
     }
 
@@ -634,7 +666,9 @@ public final class Unpooled {
      * {@code 0} and the length of the encoded string respectively.
      */
     public static ByteBuf copiedBuffer(char[] array, int offset, int length, Charset charset) {
-        ObjectUtil.checkNotNull(array, "array");
+        if (array == null) {
+            throw new NullPointerException("array");
+        }
         if (length == 0) {
             return EMPTY_BUFFER;
         }

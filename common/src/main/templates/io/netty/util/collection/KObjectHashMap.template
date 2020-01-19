@@ -236,7 +236,7 @@ public class @K@ObjectHashMap<V> implements @K@ObjectMap<V> {
 
                     @Override
                     public void remove() {
-                        iter.remove();
+                        throw new UnsupportedOperationException();
                     }
                 };
             }

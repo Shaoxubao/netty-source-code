@@ -18,7 +18,6 @@
 #define NETTY_UNIX_UTIL_H_
 
 #include <jni.h>
-#include <stdint.h>
 #include <time.h>
 
 #if defined(__MACH__) && !defined(CLOCK_REALTIME)
@@ -36,72 +35,6 @@ typedef int clockid_t;
 
 #endif /* __MACH__ */
 
-
-#define NETTY_BEGIN_MACRO     if (1) {
-#define NETTY_END_MACRO       } else (void)(0)
-
-#define NETTY_FIND_CLASS(E, C, N, R)                \
-    NETTY_BEGIN_MACRO                               \
-        C = (*(E))->FindClass((E), N);              \
-        if (C == NULL) {                            \
-            (*(E))->ExceptionClear((E));            \
-            goto R;                                 \
-        }                                           \
-    NETTY_END_MACRO
-
-#define NETTY_LOAD_CLASS(E, C, N, R)                \
-    NETTY_BEGIN_MACRO                               \
-        jclass _##C = (*(E))->FindClass((E), N);    \
-        if (_##C == NULL) {                         \
-            (*(E))->ExceptionClear((E));            \
-            goto R;                                 \
-        }                                           \
-        C = (*(E))->NewGlobalRef((E), _##C);        \
-        (*(E))->DeleteLocalRef((E), _##C);          \
-        if (C == NULL) {                            \
-            goto R;                                 \
-        }                                           \
-    NETTY_END_MACRO
-
-#define NETTY_UNLOAD_CLASS(E, C)                    \
-    NETTY_BEGIN_MACRO                               \
-        if (C != NULL) {                            \
-            (*(E))->DeleteGlobalRef((E), (C));      \
-            C = NULL;                               \
-        }                                           \
-    NETTY_END_MACRO
-
-
-#define NETTY_GET_METHOD(E, C, M, N, S, R)          \
-    NETTY_BEGIN_MACRO                               \
-        M = (*(E))->GetMethodID((E), C, N, S);      \
-        if (M == NULL) {                            \
-            goto R;                                 \
-        }                                           \
-    NETTY_END_MACRO
-
-#define NETTY_GET_FIELD(E, C, F, N, S, R)           \
-    NETTY_BEGIN_MACRO                               \
-        F = (*(E))->GetFieldID((E), C, N, S);       \
-        if (F == NULL) {                            \
-            goto R;                                 \
-        }                                           \
-    NETTY_END_MACRO
-
-#define NETTY_TRY_GET_FIELD(E, C, F, N, S)          \
-    NETTY_BEGIN_MACRO                               \
-        F = (*(E))->GetFieldID((E), C, N, S);       \
-        if (F == NULL) {                            \
-            (*(E))->ExceptionClear((E));            \
-        }                                           \
-    NETTY_END_MACRO
-
-#define NETTY_PREPEND(P, S, N, R)                             \
-    NETTY_BEGIN_MACRO                                         \
-        if ((N = netty_unix_util_prepend(P, S)) == NULL) {    \
-            goto R;                                           \
-        }                                                     \
-    NETTY_END_MACRO
 /**
  * Return a new string (caller must free this string) which is equivalent to <pre>prefix + str</pre>.
  *
@@ -132,25 +65,8 @@ jboolean netty_unix_util_initialize_wait_clock(clockid_t* clockId);
 int netty_unix_util_clock_gettime(clockid_t clockId, struct timespec* tp);
 
 /**
- * Calculate the number of nano seconds elapsed between begin and end.
- *
- * Returns the number of nano seconds.
- */
-uint64_t netty_unix_util_timespec_elapsed_ns(const struct timespec* begin, const struct timespec* end);
-
-/**
- * Subtract <pre>nanos</pre> nano seconds from a <pre>timespec</pre>.
- *
- * Returns true if there is underflow.
- */
-jboolean netty_unix_util_timespec_subtract_ns(struct timespec* ts, uint64_t nanos);
-
-/**
  * Return type is as defined in http://docs.oracle.com/javase/7/docs/technotes/guides/jni/spec/functions.html#wp5833.
  */
 jint netty_unix_util_register_natives(JNIEnv* env, const char* packagePrefix, const char* className, const JNINativeMethod* methods, jint numMethods);
-
-void netty_unix_util_free_dynamic_methods_table(JNINativeMethod* dynamicMethods, jint fixedMethodTableSize, jint fullMethodTableSize);
-void netty_unix_util_free_dynamic_name(char** dynamicName);
 
 #endif /* NETTY_UNIX_UTIL_H_ */

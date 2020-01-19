@@ -15,8 +15,6 @@
  */
 package io.netty.handler.codec;
 
-import static io.netty.util.internal.ObjectUtil.checkPositive;
-
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 
@@ -48,7 +46,10 @@ public class FixedLengthFrameDecoder extends ByteToMessageDecoder {
      * @param frameLength the length of the frame
      */
     public FixedLengthFrameDecoder(int frameLength) {
-        checkPositive(frameLength, "frameLength");
+        if (frameLength <= 0) {
+            throw new IllegalArgumentException(
+                    "frameLength must be a positive integer: " + frameLength);
+        }
         this.frameLength = frameLength;
     }
 

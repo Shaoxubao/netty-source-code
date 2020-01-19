@@ -21,8 +21,6 @@ import static org.junit.Assert.assertNull;
 import io.netty.util.CharsetUtil;
 import org.junit.Test;
 
-import java.util.Collections;
-
 public class MqttConnectPayloadTest {
 
     @Test
@@ -89,12 +87,5 @@ public class MqttConnectPayloadTest {
 
         assertNull(mqttConnectPayload.willMessageInBytes());
         assertNull(mqttConnectPayload.willMessage());
-    }
-
-    /* See https://github.com/netty/netty/pull/9202 */
-    @Test
-    public void testEmptyTopicsToString() {
-        new MqttSubscribePayload(Collections.<MqttTopicSubscription>emptyList()).toString();
-        new MqttUnsubscribePayload(Collections.<String>emptyList()).toString();
     }
 }

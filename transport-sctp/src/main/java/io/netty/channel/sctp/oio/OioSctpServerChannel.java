@@ -25,7 +25,6 @@ import io.netty.channel.ChannelPromise;
 import io.netty.channel.oio.AbstractOioMessageChannel;
 import io.netty.channel.sctp.DefaultSctpServerChannelConfig;
 import io.netty.channel.sctp.SctpServerChannelConfig;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 
@@ -47,10 +46,7 @@ import java.util.Set;
  *
  * Be aware that not all operations systems support SCTP. Please refer to the documentation of your operation system,
  * to understand what you need to do to use it. Also this feature is only supported on Java 7+.
- *
- * @deprecated use {@link io.netty.channel.sctp.nio.NioSctpServerChannel}.
  */
-@Deprecated
 public class OioSctpServerChannel extends AbstractOioMessageChannel
         implements io.netty.channel.sctp.SctpServerChannel {
 
@@ -85,7 +81,11 @@ public class OioSctpServerChannel extends AbstractOioMessageChannel
      */
     public OioSctpServerChannel(SctpServerChannel sch) {
         super(null);
-        this.sch = ObjectUtil.checkNotNull(sch, "sctp server channel");
+        if (sch == null) {
+            throw new NullPointerException("sctp server channel");
+        }
+
+        this.sch = sch;
         boolean success = false;
         try {
             sch.configureBlocking(false);

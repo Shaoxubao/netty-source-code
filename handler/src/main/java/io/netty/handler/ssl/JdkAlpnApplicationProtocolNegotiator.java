@@ -148,8 +148,4 @@ public final class JdkAlpnApplicationProtocolNegotiator extends JdkBaseApplicati
     static boolean jdkAlpnSupported() {
         return PlatformDependent.javaVersion() >= 9 && Java9SslUtils.supportsAlpn();
     }
-
-    static boolean isAlpnSupported() {
-        return AVAILABLE;
-    }
 }

@@ -67,7 +67,7 @@ public abstract class AbstractTrafficShapingHandler extends ChannelDuplexHandler
     static final long DEFAULT_MAX_SIZE = 4 * 1024 * 1024L;
 
     /**
-     * Default minimal time to wait: 10ms
+     * Default minimal time to wait
      */
     static final long MINIMAL_WAIT = 10;
 

@@ -257,12 +257,10 @@ public final class InternalThreadLocalMap extends UnpaddedInternalThreadLocalMap
         return cache;
     }
 
-    @Deprecated
     public IntegerHolder counterHashCode() {
         return counterHashCode;
     }
 
-    @Deprecated
     public void setCounterHashCode(IntegerHolder counterHashCode) {
         this.counterHashCode = counterHashCode;
     }

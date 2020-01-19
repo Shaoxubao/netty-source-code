@@ -15,7 +15,6 @@
  */
 package io.netty.handler.ssl;
 
-import io.netty.util.internal.PlatformDependent;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -33,33 +32,17 @@ import static org.junit.Assume.assumeTrue;
 @RunWith(Parameterized.class)
 public class JdkOpenSslEngineInteroptTest extends SSLEngineTest {
 
-    @Parameterized.Parameters(name = "{index}: bufferType = {0}, combo = {1}, delegate = {2}, useTasks = {3}")
-    public static Collection<Object[]> data() {
-        List<Object[]> params = new ArrayList<Object[]>();
+    @Parameterized.Parameters(name = "{index}: bufferType = {0}")
+    public static Collection<Object> data() {
+        List<Object> params = new ArrayList<Object>();
         for (BufferType type: BufferType.values()) {
-            params.add(new Object[] { type, ProtocolCipherCombo.tlsv12(), false, false });
-            params.add(new Object[] { type, ProtocolCipherCombo.tlsv12(), false, true });
-
-            params.add(new Object[] { type, ProtocolCipherCombo.tlsv12(), true, false });
-            params.add(new Object[] { type, ProtocolCipherCombo.tlsv12(), true, true });
-
-            if (PlatformDependent.javaVersion() >= 11 && OpenSsl.isTlsv13Supported()) {
-                params.add(new Object[] { type, ProtocolCipherCombo.tlsv13(), false, false });
-                params.add(new Object[] { type, ProtocolCipherCombo.tlsv13(), false, true });
-
-                params.add(new Object[] { type, ProtocolCipherCombo.tlsv13(), true, false });
-                params.add(new Object[] { type, ProtocolCipherCombo.tlsv13(), true, true });
-            }
+            params.add(type);
         }
         return params;
     }
 
-    private final boolean useTasks;
-
-    public JdkOpenSslEngineInteroptTest(BufferType type, ProtocolCipherCombo protocolCipherCombo,
-                                        boolean delegate, boolean useTasks) {
-        super(type, protocolCipherCombo, delegate);
-        this.useTasks = useTasks;
+    public JdkOpenSslEngineInteroptTest(BufferType type) {
+        super(type);
     }
 
     @BeforeClass
@@ -113,20 +96,6 @@ public class JdkOpenSslEngineInteroptTest extends SSLEngineTest {
     }
 
     @Override
-    @Test
-    public void testSessionAfterHandshakeKeyManagerFactoryMutualAuth() throws Exception {
-        checkShouldUseKeyManagerFactory();
-        super.testSessionAfterHandshakeKeyManagerFactoryMutualAuth();
-    }
-
-    @Override
-    @Test
-    public void testSessionAfterHandshakeKeyManagerFactory() throws Exception {
-        checkShouldUseKeyManagerFactory();
-        super.testSessionAfterHandshakeKeyManagerFactory();
-    }
-
-    @Override
     protected void mySetupMutualAuthServerInitSslHandler(SslHandler handler) {
         ReferenceCountedOpenSslEngine engine = (ReferenceCountedOpenSslEngine) handler.engine();
         engine.setVerify(SSL_CVERIFY_IGNORED, 1);
@@ -139,28 +108,7 @@ public class JdkOpenSslEngineInteroptTest extends SSLEngineTest {
     }
 
     @Override
-    public void testHandshakeSession() throws Exception {
-        checkShouldUseKeyManagerFactory();
-        super.testHandshakeSession();
-    }
-
-    @Override
-    @Test
-    public void testSupportedSignatureAlgorithms() throws Exception {
-        checkShouldUseKeyManagerFactory();
-        super.testSupportedSignatureAlgorithms();
-    }
-
-    @Override
     protected SSLEngine wrapEngine(SSLEngine engine) {
         return Java8SslTestUtils.wrapSSLEngineForTesting(engine);
-    }
-
-    @Override
-    protected SslContext wrapContext(SslContext context) {
-        if (context instanceof OpenSslContext) {
-            ((OpenSslContext) context).setUseTasks(useTasks);
-        }
-        return context;
     }
 }

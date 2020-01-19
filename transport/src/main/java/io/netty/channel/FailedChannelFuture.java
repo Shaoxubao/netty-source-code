@@ -16,7 +16,6 @@
 package io.netty.channel;
 
 import io.netty.util.concurrent.EventExecutor;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.PlatformDependent;
 
 /**
@@ -36,7 +35,10 @@ final class FailedChannelFuture extends CompleteChannelFuture {
      */
     FailedChannelFuture(Channel channel, EventExecutor executor, Throwable cause) {
         super(channel, executor);
-        this.cause = ObjectUtil.checkNotNull(cause, "cause");
+        if (cause == null) {
+            throw new NullPointerException("cause");
+        }
+        this.cause = cause;
     }
 
     @Override

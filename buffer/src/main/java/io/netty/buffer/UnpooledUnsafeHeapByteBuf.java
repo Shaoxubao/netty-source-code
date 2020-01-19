@@ -17,12 +17,7 @@ package io.netty.buffer;
 
 import io.netty.util.internal.PlatformDependent;
 
-/**
- * Big endian Java heap buffer implementation. It is recommended to use
- * {@link UnpooledByteBufAllocator#heapBuffer(int, int)}, {@link Unpooled#buffer(int)} and
- * {@link Unpooled#wrappedBuffer(byte[])} instead of calling the constructor explicitly.
- */
-public class UnpooledUnsafeHeapByteBuf extends UnpooledHeapByteBuf {
+class UnpooledUnsafeHeapByteBuf extends UnpooledHeapByteBuf {
 
     /**
      * Creates a new heap buffer with a newly allocated byte array.
@@ -30,7 +25,7 @@ public class UnpooledUnsafeHeapByteBuf extends UnpooledHeapByteBuf {
      * @param initialCapacity the initial capacity of the underlying byte array
      * @param maxCapacity the max capacity of the underlying byte array
      */
-    public UnpooledUnsafeHeapByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
+    UnpooledUnsafeHeapByteBuf(ByteBufAllocator alloc, int initialCapacity, int maxCapacity) {
         super(alloc, initialCapacity, maxCapacity);
     }
 

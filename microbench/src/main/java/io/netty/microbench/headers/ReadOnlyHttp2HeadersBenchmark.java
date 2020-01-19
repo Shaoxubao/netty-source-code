@@ -35,7 +35,6 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.util.Map;
 import java.util.UUID;
@@ -69,23 +68,23 @@ public class ReadOnlyHttp2HeadersBenchmark extends AbstractMicrobenchmark {
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void defaultTrailers(Blackhole bh) {
+    public int defaultTrailers() {
         Http2Headers headers = new DefaultHttp2Headers(false);
         for (int i = 0; i < headerCount; ++i) {
             headers.add(headerNames[i], headerValues[i]);
         }
-        iterate(headers, bh);
+        return iterate(headers);
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void readOnlyTrailers(Blackhole bh) {
-        iterate(ReadOnlyHttp2Headers.trailers(false, buildPairs()), bh);
+    public int readOnlyTrailers() {
+        return iterate(ReadOnlyHttp2Headers.trailers(false, buildPairs()));
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void defaultClientHeaders(Blackhole bh) {
+    public int defaultClientHeaders() {
         Http2Headers headers = new DefaultHttp2Headers(false);
         for (int i = 0; i < headerCount; ++i) {
             headers.add(headerNames[i], headerValues[i]);
@@ -94,37 +93,39 @@ public class ReadOnlyHttp2HeadersBenchmark extends AbstractMicrobenchmark {
         headers.scheme(HttpScheme.HTTPS.name());
         headers.path(path);
         headers.authority(authority);
-        iterate(headers, bh);
+        return iterate(headers);
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void readOnlyClientHeaders(Blackhole bh) {
-        iterate(ReadOnlyHttp2Headers.clientHeaders(false, HttpMethod.POST.asciiName(), path,
-                                                          HttpScheme.HTTPS.name(), authority, buildPairs()), bh);
+    public int readOnlyClientHeaders() {
+        return iterate(ReadOnlyHttp2Headers.clientHeaders(false, HttpMethod.POST.asciiName(), path,
+                                                          HttpScheme.HTTPS.name(), authority, buildPairs()));
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void defaultServerHeaders(Blackhole bh) {
+    public int defaultServerHeaders() {
         Http2Headers headers = new DefaultHttp2Headers(false);
         for (int i = 0; i < headerCount; ++i) {
             headers.add(headerNames[i], headerValues[i]);
         }
         headers.status(HttpResponseStatus.OK.codeAsText());
-        iterate(headers, bh);
+        return iterate(headers);
     }
 
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
-    public void readOnlyServerHeaders(Blackhole bh) {
-        iterate(ReadOnlyHttp2Headers.serverHeaders(false, HttpResponseStatus.OK.codeAsText(), buildPairs()), bh);
+    public int readOnlyServerHeaders() {
+        return iterate(ReadOnlyHttp2Headers.serverHeaders(false, HttpResponseStatus.OK.codeAsText(), buildPairs()));
     }
 
-    private static void iterate(Http2Headers headers, Blackhole bh) {
+    private static int iterate(Http2Headers headers) {
+        int length = 0;
         for (Map.Entry<CharSequence, CharSequence> entry : headers) {
-            bh.consume(entry);
+            length += entry.getKey().length() + entry.getValue().length();
         }
+        return length;
     }
 
     private AsciiString[] buildPairs() {

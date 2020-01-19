@@ -63,10 +63,6 @@ final class NativeLongArray {
         return size == 0;
     }
 
-    int size() {
-        return size;
-    }
-
     void free() {
         Buffer.free(memory);
         memoryAddress = 0;

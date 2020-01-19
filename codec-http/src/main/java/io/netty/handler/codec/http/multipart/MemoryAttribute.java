@@ -18,7 +18,6 @@ package io.netty.handler.codec.http.multipart;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelException;
 import io.netty.handler.codec.http.HttpConstants;
-import io.netty.util.internal.ObjectUtil;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -67,7 +66,9 @@ public class MemoryAttribute extends AbstractMemoryHttpData implements Attribute
 
     @Override
     public void setValue(String value) throws IOException {
-        ObjectUtil.checkNotNull(value, "value");
+        if (value == null) {
+            throw new NullPointerException("value");
+        }
         byte [] bytes = value.getBytes(getCharset());
         checkSize(bytes.length);
         ByteBuf buffer = wrappedBuffer(bytes);

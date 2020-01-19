@@ -31,11 +31,13 @@ import static java.lang.Math.min;
 
 @UnstableApi
 public class KQueueChannelConfig extends DefaultChannelConfig {
+    final AbstractKQueueChannel channel;
     private volatile boolean transportProvidesGuess;
     private volatile long maxBytesPerGatheringWrite = SSIZE_MAX;
 
     KQueueChannelConfig(AbstractKQueueChannel channel) {
         super(channel);
+        this.channel = channel;
     }
 
     @Override
@@ -67,7 +69,7 @@ public class KQueueChannelConfig extends DefaultChannelConfig {
     }
 
     /**
-     * If this is {@code true} then the {@link RecvByteBufAllocator.Handle#guess()} will be overridden to always attempt
+     * If this is {@code true} then the {@link RecvByteBufAllocator.Handle#guess()} will be overriden to always attempt
      * to read as many bytes as kqueue says are available.
      */
     public KQueueChannelConfig setRcvAllocTransportProvidesGuess(boolean transportProvidesGuess) {
@@ -76,7 +78,7 @@ public class KQueueChannelConfig extends DefaultChannelConfig {
     }
 
     /**
-     * If this is {@code true} then the {@link RecvByteBufAllocator.Handle#guess()} will be overridden to always attempt
+     * If this is {@code true} then the {@link RecvByteBufAllocator.Handle#guess()} will be overriden to always attempt
      * to read as many bytes as kqueue says are available.
      */
     public boolean getRcvAllocTransportProvidesGuess() {
@@ -152,7 +154,7 @@ public class KQueueChannelConfig extends DefaultChannelConfig {
 
     @Override
     protected final void autoReadCleared() {
-        ((AbstractKQueueChannel) channel).clearReadFilter();
+        channel.clearReadFilter();
     }
 
     final void setMaxBytesPerGatheringWrite(long maxBytesPerGatheringWrite) {

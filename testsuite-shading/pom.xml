@@ -20,7 +20,7 @@
   <parent>
     <groupId>io.netty</groupId>
     <artifactId>netty-parent</artifactId>
-    <version>4.1.45.Final-SNAPSHOT</version>
+    <version>4.1.30.Final</version>
   </parent>
 
   <artifactId>netty-testsuite-shading</artifactId>
@@ -38,7 +38,6 @@
 
     <jarName>${project.artifactId}-${project.version}.jar</jarName>
     <shadedPackagePrefix>io.netty.</shadedPackagePrefix>
-    <skipJapicmp>true</skipJapicmp>
   </properties>
 
   <build>
@@ -67,46 +66,6 @@
   </dependencies>
   <profiles>
     <profile>
-      <id>skipTests</id>
-      <activation>
-        <property>
-          <name>skipTests</name>
-        </property>
-      </activation>
-      <properties>
-        <skipShadingTestsuite>true</skipShadingTestsuite>
-      </properties>
-    </profile>
-    <profile>
-      <id>windows</id>
-      <activation>
-        <os>
-          <family>windows</family>
-        </os>
-      </activation>
-      <dependencies>
-        <dependency>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>netty-common</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-        </dependency>
-        <dependency>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>netty-handler</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-        </dependency>
-        <dependency>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>${tcnative.artifactId}</artifactId>
-          <version>${tcnative.version}</version>
-          <classifier>${tcnative.classifier}</classifier>
-          <scope>compile</scope>
-        </dependency>
-      </dependencies>
-    </profile>
-    <profile>
       <id>mac</id>
       <activation>
         <os>
@@ -115,14 +74,9 @@
       </activation>
       <properties>
         <nativeTransportLib>netty_transport_native_kqueue_${os.detected.arch}.jnilib</nativeTransportLib>
+        <nativeTcnativeLib>netty_tcnative.jnilib</nativeTcnativeLib>
       </properties>
       <dependencies>
-        <dependency>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>netty-common</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-        </dependency>
         <dependency>
           <groupId>${project.groupId}</groupId>
           <artifactId>netty-transport-native-kqueue</artifactId>
@@ -204,7 +158,6 @@
                   <goal>run</goal>
                 </goals>
                 <configuration>
-                  <skip>${skipShadingTestsuite}</skip>
                   <target>
                     <unzip dest="${classesShadedDir}/">
                       <fileset dir="${project.build.directory}/">
@@ -214,10 +167,6 @@
                     <copy file="${classesShadedNativeDir}/lib${nativeTransportLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix}_${nativeTransportLib}" />
                     <copy file="${classesShadedNativeDir}/lib${nativeTransportLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix2}_${nativeTransportLib}" />
                     <delete file="${classesShadedNativeDir}/lib${nativeTransportLib}" />
-
-                    <condition property="nativeTcnativeLib" value="netty_tcnative_osx_${os.detected.arch}.jnilib" else="netty_tcnative.jnilib">
-                      <equals arg1="${tcnative.classifier}" arg2="" />
-                    </condition>
 
                     <copy file="${classesShadedNativeDir}/lib${nativeTcnativeLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix}_${nativeTcnativeLib}" />
                     <copy file="${classesShadedNativeDir}/lib${nativeTcnativeLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix2}_${nativeTcnativeLib}" />
@@ -234,7 +183,6 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
             <configuration>
-              <skip>${skipShadingTestsuite}</skip>
               <systemPropertyVariables>
                 <shadingPrefix>${shadingPrefix}</shadingPrefix>
                 <shadingPrefix2>${shadingPrefix2}</shadingPrefix2>
@@ -261,14 +209,9 @@
       </activation>
       <properties>
         <nativeTransportLib>netty_transport_native_epoll_${os.detected.arch}.so</nativeTransportLib>
+        <nativeTcnativeLib>netty_tcnative.so</nativeTcnativeLib>
       </properties>
       <dependencies>
-        <dependency>
-          <groupId>${project.groupId}</groupId>
-          <artifactId>netty-common</artifactId>
-          <version>${project.version}</version>
-          <scope>compile</scope>
-        </dependency>
         <dependency>
           <groupId>${project.groupId}</groupId>
           <artifactId>netty-transport-native-epoll</artifactId>
@@ -350,7 +293,6 @@
                   <goal>run</goal>
                 </goals>
                 <configuration>
-                  <skip>${skipShadingTestsuite}</skip>
                   <target>
                     <unzip dest="${classesShadedDir}/">
                       <fileset dir="${project.build.directory}/">
@@ -360,10 +302,6 @@
                     <copy file="${classesShadedNativeDir}/lib${nativeTransportLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix}_${nativeTransportLib}" />
                     <copy file="${classesShadedNativeDir}/lib${nativeTransportLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix2}_${nativeTransportLib}" />
                     <delete file="${classesShadedNativeDir}/lib${nativeTransportLib}" />
-
-                    <condition property="nativeTcnativeLib" value="netty_tcnative_linux_${os.detected.arch}.so" else="netty_tcnative.so">
-                      <equals arg1="${tcnative.classifier}" arg2="" />
-                    </condition>
 
                     <copy file="${classesShadedNativeDir}/lib${nativeTcnativeLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix}_${nativeTcnativeLib}" />
                     <copy file="${classesShadedNativeDir}/lib${nativeTcnativeLib}" tofile="${classesShadedNativeDir}/lib${shadingPrefix2}_${nativeTcnativeLib}" />
@@ -380,7 +318,6 @@
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
             <configuration>
-              <skip>${skipShadingTestsuite}</skip>
               <systemPropertyVariables>
                 <shadingPrefix>${shadingPrefix}</shadingPrefix>
                 <shadingPrefix2>${shadingPrefix2}</shadingPrefix2>

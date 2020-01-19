@@ -18,7 +18,6 @@ package io.netty.handler.ssl;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
@@ -42,9 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.AfterClass;
@@ -70,7 +66,7 @@ public class CipherSuiteCanaryTest {
 
     private static SelfSignedCertificate CERT;
 
-    @Parameters(name = "{index}: serverSslProvider = {0}, clientSslProvider = {1}, rfcCipherName = {2}, delegate = {3}")
+    @Parameters(name = "{index}: serverSslProvider = {0}, clientSslProvider = {1}, rfcCipherName = {2}")
     public static Collection<Object[]> parameters() {
        List<Object[]> dst = new ArrayList<Object[]>();
        dst.addAll(expand("TLS_DHE_RSA_WITH_AES_128_GCM_SHA256")); // DHE-RSA-AES128-GCM-SHA256
@@ -84,7 +80,7 @@ public class CipherSuiteCanaryTest {
     }
 
     @AfterClass
-    public static void destroy() {
+    public static void destory() {
         GROUP.shutdownGracefully();
         CERT.delete();
     }
@@ -94,14 +90,11 @@ public class CipherSuiteCanaryTest {
     private final SslProvider clientSslProvider;
 
     private final String rfcCipherName;
-    private final boolean delegate;
 
-    public CipherSuiteCanaryTest(SslProvider serverSslProvider, SslProvider clientSslProvider,
-                                 String rfcCipherName, boolean delegate) {
+    public CipherSuiteCanaryTest(SslProvider serverSslProvider, SslProvider clientSslProvider, String rfcCipherName) {
         this.serverSslProvider = serverSslProvider;
         this.clientSslProvider = clientSslProvider;
         this.rfcCipherName = rfcCipherName;
-        this.delegate = delegate;
     }
 
     private static void assumeCipherAvailable(SslProvider provider, String cipher) throws NoSuchAlgorithmException {
@@ -120,14 +113,6 @@ public class CipherSuiteCanaryTest {
         Assume.assumeTrue("Unsupported cipher: " + cipher, cipherSupported);
     }
 
-    private static SslHandler newSslHandler(SslContext sslCtx, ByteBufAllocator allocator, Executor executor) {
-        if (executor == null) {
-            return sslCtx.newHandler(allocator);
-        } else {
-            return sslCtx.newHandler(allocator, executor);
-        }
-    }
-
     @Test
     public void testHandshake() throws Exception {
         // Check if the cipher is supported at all which may not be the case for various JDK versions and OpenSSL API
@@ -140,18 +125,12 @@ public class CipherSuiteCanaryTest {
         final SslContext sslServerContext = SslContextBuilder.forServer(CERT.certificate(), CERT.privateKey())
                 .sslProvider(serverSslProvider)
                 .ciphers(ciphers)
-                // As this is not a TLSv1.3 cipher we should ensure we talk something else.
-                .protocols(SslUtils.PROTOCOL_TLS_V1_2)
                 .build();
-
-        final ExecutorService executorService = delegate ? Executors.newCachedThreadPool() : null;
 
         try {
             final SslContext sslClientContext = SslContextBuilder.forClient()
                     .sslProvider(clientSslProvider)
                     .ciphers(ciphers)
-                    // As this is not a TLSv1.3 cipher we should ensure we talk something else.
-                    .protocols(SslUtils.PROTOCOL_TLS_V1_2)
                     .trustManager(InsecureTrustManagerFactory.INSTANCE)
                     .build();
 
@@ -163,7 +142,7 @@ public class CipherSuiteCanaryTest {
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
-                        pipeline.addLast(newSslHandler(sslServerContext, ch.alloc(), executorService));
+                        pipeline.addLast(sslServerContext.newHandler(ch.alloc()));
 
                         pipeline.addLast(new SimpleChannelInboundHandler<Object>() {
                             @Override
@@ -199,7 +178,7 @@ public class CipherSuiteCanaryTest {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
                             ChannelPipeline pipeline = ch.pipeline();
-                            pipeline.addLast(newSslHandler(sslClientContext, ch.alloc(), executorService));
+                            pipeline.addLast(sslClientContext.newHandler(ch.alloc()));
 
                             pipeline.addLast(new SimpleChannelInboundHandler<Object>() {
                                 @Override
@@ -246,10 +225,6 @@ public class CipherSuiteCanaryTest {
             }
         } finally {
             ReferenceCountUtil.release(sslServerContext);
-
-            if (executorService != null) {
-                executorService.shutdown();
-            }
         }
     }
 
@@ -288,8 +263,7 @@ public class CipherSuiteCanaryTest {
                     continue;
                 }
 
-                dst.add(new Object[]{serverSslProvider, clientSslProvider, rfcCipherName, true});
-                dst.add(new Object[]{serverSslProvider, clientSslProvider, rfcCipherName, false});
+                dst.add(new Object[]{serverSslProvider, clientSslProvider, rfcCipherName});
             }
         }
 

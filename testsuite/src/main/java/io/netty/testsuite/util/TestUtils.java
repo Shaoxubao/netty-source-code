@@ -16,7 +16,6 @@
 package io.netty.testsuite.util;
 
 import io.netty.util.CharsetUtil;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.junit.rules.TestName;
@@ -113,7 +112,9 @@ public final class TestUtils {
 
     public static void dump(String filenamePrefix) throws IOException {
 
-        ObjectUtil.checkNotNull(filenamePrefix, "filenamePrefix");
+        if (filenamePrefix == null) {
+            throw new NullPointerException("filenamePrefix");
+        }
 
         final String timestamp = timestamp();
         final File heapDumpFile = new File(filenamePrefix + '.' + timestamp + ".hprof");

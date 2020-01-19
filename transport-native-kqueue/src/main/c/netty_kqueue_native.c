@@ -139,11 +139,15 @@ static jint netty_kqueue_native_keventWait(JNIEnv* env, jclass clazz, jint kqueu
         }
 
         netty_unix_util_clock_gettime(waitClockId, &nowTs);
-        if (netty_unix_util_timespec_subtract_ns(&timeoutTs,
-              netty_unix_util_timespec_elapsed_ns(&beforeTs, &nowTs))) {
+        // beforeTs will store the time difference to check for overflow
+        beforeTs.tv_sec = nowTs.tv_sec - beforeTs.tv_sec;
+        beforeTs.tv_nsec = nowTs.tv_nsec - beforeTs.tv_nsec;
+        // Now subtract the time difference
+        timeoutTs.tv_sec -= beforeTs.tv_sec;
+        timeoutTs.tv_nsec -= beforeTs.tv_nsec;
+        if (beforeTs.tv_sec < 0 || beforeTs.tv_nsec < 0 || (timeoutTs.tv_sec <= 0 && timeoutTs.tv_nsec <= 0)) {
             return 0;
         }
-
         beforeTs = nowTs;
         // https://www.freebsd.org/cgi/man.cgi?query=kqueue&sektion=2
         // When kevent() call fails with EINTR error, all changes in the changelist have been applied.
@@ -388,8 +392,10 @@ static jint JNI_OnLoad_netty_transport_native_kqueue0(JavaVM* vm, void* reserved
 #endif /* NETTY_BUILD_STATIC */
     jint ret = netty_kqueue_native_JNI_OnLoad(env, packagePrefix);
 
-    // It's safe to call free(...) with a NULL argument as well.
-    free(packagePrefix);
+    if (packagePrefix != NULL) {
+      free(packagePrefix);
+      packagePrefix = NULL;
+    }
 
     return ret;
 }

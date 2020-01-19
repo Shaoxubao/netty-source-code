@@ -20,7 +20,6 @@ import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.UnstableApi;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -95,7 +94,9 @@ public final class SmtpRequests {
         } else {
             List<CharSequence> params = new ArrayList<CharSequence>(mailParameters.length + 1);
             params.add(sender != null? "FROM:<" + sender + '>' : FROM_NULL_SENDER);
-            Collections.addAll(params, mailParameters);
+            for (CharSequence param : mailParameters) {
+                params.add(param);
+            }
             return new DefaultSmtpRequest(SmtpCommand.MAIL, params);
         }
     }
@@ -110,7 +111,9 @@ public final class SmtpRequests {
         } else {
             List<CharSequence> params = new ArrayList<CharSequence>(rcptParameters.length + 1);
             params.add("TO:<" + recipient + '>');
-            Collections.addAll(params, rcptParameters);
+            for (CharSequence param : rcptParameters) {
+                params.add(param);
+            }
             return new DefaultSmtpRequest(SmtpCommand.RCPT, params);
         }
     }

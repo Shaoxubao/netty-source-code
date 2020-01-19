@@ -174,7 +174,6 @@ public class RecyclerTest {
 
         final HandledObject o = recycler.get();
         final HandledObject o2 = recycler.get();
-
         final Thread thread = new Thread() {
             @Override
             public void run() {

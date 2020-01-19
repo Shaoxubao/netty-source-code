@@ -18,7 +18,6 @@ package io.netty.handler.codec.socks;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.CharsetUtil;
 import io.netty.util.NetUtil;
-import io.netty.util.internal.ObjectUtil;
 
 import java.net.IDN;
 
@@ -62,8 +61,12 @@ public final class SocksCmdResponse extends SocksResponse {
      */
     public SocksCmdResponse(SocksCmdStatus cmdStatus, SocksAddressType addressType, String host, int port) {
         super(SocksResponseType.CMD);
-        ObjectUtil.checkNotNull(cmdStatus, "cmdStatus");
-        ObjectUtil.checkNotNull(addressType, "addressType");
+        if (cmdStatus == null) {
+            throw new NullPointerException("cmdStatus");
+        }
+        if (addressType == null) {
+            throw new NullPointerException("addressType");
+        }
         if (host != null) {
             switch (addressType) {
                 case IPv4:

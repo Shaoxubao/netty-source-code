@@ -18,11 +18,9 @@ package io.netty.handler.ssl;
 import io.netty.internal.tcnative.SSL;
 import io.netty.util.AbstractReferenceCounted;
 import io.netty.util.IllegalReferenceCountException;
-import io.netty.util.internal.EmptyArrays;
 
 import javax.security.auth.Destroyable;
 import java.security.PrivateKey;
-import java.security.cert.X509Certificate;
 
 final class OpenSslPrivateKey extends AbstractReferenceCounted implements PrivateKey {
 
@@ -34,7 +32,7 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
 
     @Override
     public String getAlgorithm() {
-        return "unknown";
+        return "unkown";
     }
 
     @Override
@@ -48,7 +46,10 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
         return null;
     }
 
-    private long privateKeyAddress() {
+    /**
+     * Returns the pointer to the {@code EVP_PKEY}.
+     */
+    long privateKeyAddress() {
         if (refCnt() <= 0) {
             throw new IllegalReferenceCountException();
         }
@@ -91,7 +92,6 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
      *
      * @see Destroyable#destroy()
      */
-    @Override
     public void destroy() {
         release(refCnt());
     }
@@ -103,38 +103,23 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
      *
      * @see Destroyable#isDestroyed()
      */
-    @Override
     public boolean isDestroyed() {
         return refCnt() == 0;
     }
 
     /**
-     * Create a new {@link OpenSslKeyMaterial} which uses the private key that is held by {@link OpenSslPrivateKey}.
-     *
-     * When the material is created we increment the reference count of the enclosing {@link OpenSslPrivateKey} and
-     * decrement it again when the reference count of the {@link OpenSslKeyMaterial} reaches {@code 0}.
+     * Convert to a {@link OpenSslKeyMaterial}. Reference count of both is shared.
      */
-    OpenSslKeyMaterial newKeyMaterial(long certificateChain, X509Certificate[] chain) {
-        return new OpenSslPrivateKeyMaterial(certificateChain, chain);
+    OpenSslKeyMaterial toKeyMaterial(long certificateChain) {
+        return new OpenSslPrivateKeyMaterial(certificateChain);
     }
 
-    // Package-private for unit-test only
-    final class OpenSslPrivateKeyMaterial extends AbstractReferenceCounted implements OpenSslKeyMaterial {
+    private final class OpenSslPrivateKeyMaterial implements OpenSslKeyMaterial {
 
-        // Package-private for unit-test only
-        long certificateChain;
-        private final X509Certificate[] x509CertificateChain;
+        private long certificateChain;
 
-        OpenSslPrivateKeyMaterial(long certificateChain, X509Certificate[] x509CertificateChain) {
+        OpenSslPrivateKeyMaterial(long certificateChain) {
             this.certificateChain = certificateChain;
-            this.x509CertificateChain = x509CertificateChain == null ?
-                    EmptyArrays.EMPTY_X509_CERTIFICATES : x509CertificateChain;
-            OpenSslPrivateKey.this.retain();
-        }
-
-        @Override
-        public X509Certificate[] certificateChain() {
-            return x509CertificateChain.clone();
         }
 
         @Override
@@ -147,27 +132,18 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
 
         @Override
         public long privateKeyAddress() {
-            if (refCnt() <= 0) {
-                throw new IllegalReferenceCountException();
-            }
             return OpenSslPrivateKey.this.privateKeyAddress();
         }
 
         @Override
-        public OpenSslKeyMaterial touch(Object hint) {
-            OpenSslPrivateKey.this.touch(hint);
-            return this;
-        }
-
-        @Override
         public OpenSslKeyMaterial retain() {
-            super.retain();
+            OpenSslPrivateKey.this.retain();
             return this;
         }
 
         @Override
         public OpenSslKeyMaterial retain(int increment) {
-            super.retain(increment);
+            OpenSslPrivateKey.this.retain(increment);
             return this;
         }
 
@@ -178,14 +154,37 @@ final class OpenSslPrivateKey extends AbstractReferenceCounted implements Privat
         }
 
         @Override
-        protected void deallocate() {
-            releaseChain();
-            OpenSslPrivateKey.this.release();
+        public OpenSslKeyMaterial touch(Object hint) {
+            OpenSslPrivateKey.this.touch(hint);
+            return this;
+        }
+
+        @Override
+        public boolean release() {
+            if (OpenSslPrivateKey.this.release()) {
+                releaseChain();
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean release(int decrement) {
+            if (OpenSslPrivateKey.this.release(decrement)) {
+                releaseChain();
+                return true;
+            }
+            return false;
         }
 
         private void releaseChain() {
             SSL.freeX509Chain(certificateChain);
             certificateChain = 0;
+        }
+
+        @Override
+        public int refCnt() {
+            return OpenSslPrivateKey.this.refCnt();
         }
     }
 }

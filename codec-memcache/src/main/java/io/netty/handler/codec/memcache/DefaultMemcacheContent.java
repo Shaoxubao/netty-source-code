@@ -16,7 +16,6 @@
 package io.netty.handler.codec.memcache;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.util.internal.ObjectUtil;
 import io.netty.util.internal.StringUtil;
 import io.netty.util.internal.UnstableApi;
 
@@ -32,7 +31,10 @@ public class DefaultMemcacheContent extends AbstractMemcacheObject implements Me
      * Creates a new instance with the specified content.
      */
     public DefaultMemcacheContent(ByteBuf content) {
-        this.content = ObjectUtil.checkNotNull(content, "content");
+        if (content == null) {
+            throw new NullPointerException("Content cannot be null.");
+        }
+        this.content = content;
     }
 
     @Override

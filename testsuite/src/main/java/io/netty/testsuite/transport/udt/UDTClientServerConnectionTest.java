@@ -35,9 +35,6 @@ import io.netty.util.CharsetUtil;
 import io.netty.util.NetUtil;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.GlobalEventExecutor;
-import io.netty.util.internal.PlatformDependent;
-import org.junit.Assume;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -335,22 +332,6 @@ public class UDTClientServerConnectionTest {
      */
     static final int WAIT_COUNT = 50;
     static final int WAIT_SLEEP = 100;
-
-    @BeforeClass
-    public static void assumeUdt() {
-        Assume.assumeTrue("com.barchart.udt.SocketUDT can not be loaded and initialized", canLoadAndInit());
-        Assume.assumeFalse("Not supported on J9 JVM", PlatformDependent.isJ9Jvm());
-    }
-
-    private static boolean canLoadAndInit() {
-        try {
-            Class.forName("com.barchart.udt.SocketUDT", true,
-                    UDTClientServerConnectionTest.class.getClassLoader());
-            return true;
-        } catch (Throwable e) {
-            return false;
-        }
-    }
 
     /**
      * Verify UDT client/server connect and disconnect.

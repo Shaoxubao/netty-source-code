@@ -276,41 +276,65 @@ static const jint method_table_size = sizeof(method_table) / sizeof(method_table
 // JNI Method Registration Table End
 
 jint netty_unix_filedescriptor_JNI_OnLoad(JNIEnv* env, const char* packagePrefix) {
-    int ret = JNI_ERR;
-    void* mem = NULL;
     if (netty_unix_util_register_natives(env, packagePrefix, "io/netty/channel/unix/FileDescriptor", method_table, method_table_size) != 0) {
-        goto done;
+        return JNI_ERR;
     }
-    if ((mem = malloc(1)) == NULL) {
-        goto done;
+    void* mem = malloc(1);
+    if (mem == NULL) {
+        netty_unix_errors_throwOutOfMemoryError(env);
+        return JNI_ERR;
     }
     jobject directBuffer = (*env)->NewDirectByteBuffer(env, mem, 1);
     if (directBuffer == NULL) {
-        goto done;
+        free(mem);
+
+        netty_unix_errors_throwOutOfMemoryError(env);
+        return JNI_ERR;
     }
     if ((*env)->GetDirectBufferAddress(env, directBuffer) == NULL) {
-        goto done;
+        free(mem);
+
+        netty_unix_errors_throwRuntimeException(env, "failed to get direct buffer address");
+        return JNI_ERR;
     }
+
     jclass cls = (*env)->GetObjectClass(env, directBuffer);
-    if (cls == NULL) {
-        goto done;
-    }
- 
+
     // Get the method id for Buffer.position() and Buffer.limit(). These are used as fallback if
     // it is not possible to obtain the position and limit using the fields directly.
-    NETTY_GET_METHOD(env, cls, posId, "position", "()I", done);
-    NETTY_GET_METHOD(env, cls, limitId, "limit", "()I", done);
+    posId = (*env)->GetMethodID(env, cls, "position", "()I");
+    if (posId == NULL) {
+        free(mem);
 
+        // position method was not found.. something is wrong so bail out
+        netty_unix_errors_throwRuntimeException(env, "failed to get method ID: ByteBuffer.position()");
+        return JNI_ERR;
+    }
+
+    limitId = (*env)->GetMethodID(env, cls, "limit", "()I");
+    if (limitId == NULL) {
+        free(mem);
+
+        // limit method was not found.. something is wrong so bail out
+        netty_unix_errors_throwRuntimeException(env, "failed to get method ID: ByteBuffer.limit()");
+        return JNI_ERR;
+    }
     // Try to get the ids of the position and limit fields. We later then check if we was able
     // to find them and if so use them get the position and limit of the buffer. This is
     // much faster then call back into java via (*env)->CallIntMethod(...).
-    NETTY_TRY_GET_FIELD(env, cls, posFieldId, "position", "I");
-    NETTY_TRY_GET_FIELD(env, cls, limitFieldId, "limit", "I");
+    posFieldId = (*env)->GetFieldID(env, cls, "position", "I");
+    if (posFieldId == NULL) {
+        // this is ok as we can still use the method so just clear the exception
+        (*env)->ExceptionClear(env);
+    }
+    limitFieldId = (*env)->GetFieldID(env, cls, "limit", "I");
+    if (limitFieldId == NULL) {
+        // this is ok as we can still use the method so just clear the exception
+        (*env)->ExceptionClear(env);
+    }
 
-    ret = NETTY_JNI_VERSION;
-done:
     free(mem);
-    return ret;
+    return NETTY_JNI_VERSION;
 }
 
 void netty_unix_filedescriptor_JNI_OnUnLoad(JNIEnv* env) { }

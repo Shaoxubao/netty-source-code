@@ -65,10 +65,6 @@ public final class PemPrivateKey extends AbstractReferenceCounted implements Pri
             throw new IllegalArgumentException(key.getClass().getName() + " does not support encoding");
         }
 
-        return toPEM(allocator, useDirect, bytes);
-    }
-
-    static PemEncoded toPEM(ByteBufAllocator allocator, boolean useDirect, byte[] bytes) {
         ByteBuf encoded = Unpooled.wrappedBuffer(bytes);
         try {
             ByteBuf base64 = SslUtils.toBase64(allocator, encoded);
@@ -211,7 +207,6 @@ public final class PemPrivateKey extends AbstractReferenceCounted implements Pri
      *
      * @see Destroyable#destroy()
      */
-    @Override
     public void destroy() {
         release(refCnt());
     }
@@ -223,7 +218,6 @@ public final class PemPrivateKey extends AbstractReferenceCounted implements Pri
      *
      * @see Destroyable#isDestroyed()
      */
-    @Override
     public boolean isDestroyed() {
         return refCnt() == 0;
     }
