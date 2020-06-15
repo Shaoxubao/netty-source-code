@@ -482,6 +482,10 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
      * @param in            the {@link ByteBuf} from which to read data
      * @param out           the {@link List} to which decoded messages should be added
      * @throws Exception    is thrown if an error occurs
+     *
+     * in：需要解码的二进制数据。
+     * List<Object> out：解码后的有效报文列表，我们需要将解码后的报文添加到这个List中。之所以使用一个List表示，
+     * 是因为考虑到粘包问题，因此入参的in中可能包含多个有效报文。当然，也有可能发生了拆包，in中包含的数据还不足以构成一个有效报文，此时不往List中添加元素即可。
      */
     protected abstract void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception;
 
