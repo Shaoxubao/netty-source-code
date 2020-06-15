@@ -66,6 +66,12 @@ import java.util.List;
  * Some methods such as {@link ByteBuf#readBytes(int)} will cause a memory leak if the returned buffer
  * is not released or added to the <tt>out</tt> {@link List}. Use derived buffers like {@link ByteBuf#readSlice(int)}
  * to avoid leaking memory.
+ *
+ * 特别需要注意的一点是，如果我们指定MessageToMessageDecoder的泛型参数为ByteBuf，表示其可以直接针对ByteBuf进行解码，那么其是否能替代ByteToMessageDecoder呢？
+ *
+ * 答案是不可以的。因为ByteToMessageDecoder除了进行解码，还要会对不足以构成一个完整数据的报文拆包数据(拆包)进行缓存。而MessageToMessageDecoder则没有这样的逻辑。
+ *
+ * 因此通常的使用建议是，使用一个ByteToMessageDecoder进行粘包、拆包处理，得到完整的有效报文的ByteBuf实例，然后交由之后的一个或者多个MessageToMessageDecoder对ByteBuf实例中的数据进行解析，转换成POJO类。
  */
 public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter {
 
