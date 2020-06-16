@@ -164,14 +164,16 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
      也可以使用CompositeByteBuf把两个ByteBuf合并在一起，例如一个存放报文头，另一个存放报文体。而不是创建一个更大的ByteBuf，把两个小ByteBuf合并在一起，这是应用层面的零拷贝。
 
      而LengthFieldPrepender，由于需要在原来的二进制数据之前添加一个Length字段，因此就需要对二者进行合并发送。但是LengthFieldPrepender并没有采用CompositeByteBuf，其编码过程如下：
+     encode()方法实现。
 
-     LengthFieldPrepender实际上是先把Length字段(报文头)添加到List中，再把msg本身(报文提)天际到List中。而在发送数据时，LengthFieldPrepender的父类MessageToMessageEncoder
+     LengthFieldPrepender实际上是先把Length字段(报文头)添加到List中，再把msg本身(报文提)添加到到List中。而在发送数据时，LengthFieldPrepender的父类MessageToMessageEncoder
      会按照List中的元素下标按照顺序发送，因此相当于间接的把Length字段添加到了msg之前。从而避免了创建一个更大的ByteBuf将Length字段和msg内容合并到一起。作为开发者的我们，在编写编码器的时候，
      这种一种重要的实现零拷贝的参考思路。
 
      */
     @Override
     protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception {
+        // 1 获得Length字段的值：真实数据可读字节数+Length字段调整值
         int length = msg.readableBytes() + lengthAdjustment;
         if (lengthIncludesLengthFieldLength) {
             length += lengthFieldLength;
@@ -182,6 +184,8 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
                     "Adjusted frame length (" + length + ") is less than zero");
         }
 
+        // 2 根据lengthFieldLength指定的值(1、2、3、4、8)，创建一个ByteBuffer实例，写入length的值，
+        // 并添加到List类型的out变量中
         switch (lengthFieldLength) {
         case 1:
             if (length >= 256) {
@@ -213,6 +217,8 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
         default:
             throw new Error("should not reach here");
         }
+
+        // 3 最后，再将msg本身添加到List中(msg.retain是增加一次引用，返回的还是msg本身)
         out.add(msg.retain());
     }
 }
