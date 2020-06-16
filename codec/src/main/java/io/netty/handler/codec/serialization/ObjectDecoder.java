@@ -58,21 +58,29 @@ public class ObjectDecoder extends LengthFieldBasedFrameDecoder {
      *                       will be raised.
      * @param classResolver    the {@link ClassResolver} which will load the class
      *                       of the serialized object
+     *
+     * 参数maxObjectSize：表示可接受的对象反序列化的最大字节数，默认为1048576 bytes，约等于1M
+     * 参数classResolver：由于需要将二进制字节反序列化为Java对象，需要指定一个ClassResolver来加载这个类的字节码对象
      */
     public ObjectDecoder(int maxObjectSize, ClassResolver classResolver) {
+        // 调用父类LengthFieldBasedFrameDecoder构造方法
         super(maxObjectSize, 0, 4, 0, 4);
         this.classResolver = classResolver;
     }
 
+    // 当需要解码时，decode方法会被回调
     @Override
     protected Object decode(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+        // 首先调用父类的decode方法进行解码，会解析出包含可解析为java对象的完整二进制字节封装到ByteBuf中，同时Length字段的4个字节会被删除
         ByteBuf frame = (ByteBuf) super.decode(ctx, in);
         if (frame == null) {
             return null;
         }
 
+        // 构造JDK ObjectInputStream实例用于解码
         ObjectInputStream ois = new CompactObjectInputStream(new ByteBufInputStream(frame, true), classResolver);
         try {
+            // 调用readObject方法进行解码，其返回的就是反序列化之后的Java对象
             return ois.readObject();
         } finally {
             ois.close();

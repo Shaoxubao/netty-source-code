@@ -37,15 +37,24 @@ import java.io.Serializable;
 public class ObjectEncoder extends MessageToByteEncoder<Serializable> {
     private static final byte[] LENGTH_PLACEHOLDER = new byte[4];
 
+    // 当需要编码时，encode方法会被回调
+    // 参数msg：就是我们需要序列化的java对象
+    // 参数out：我们需要将序列化后的二进制字节写到ByteBuf中
     @Override
     protected void encode(ChannelHandlerContext ctx, Serializable msg, ByteBuf out) throws Exception {
         int startIdx = out.writerIndex();
 
+        // ByteBufOutputStream是Netty提供的输出流，数据写入其中之后，可以通过其buffer()方法获得对应的ByteBuf实例
         ByteBufOutputStream bout = new ByteBufOutputStream(out);
+        // JDK序列化机制的ObjectOutputStream
         ObjectOutputStream oout = null;
         try {
+            // 首先占用4个字节，这就是Length字段的字节数，这只是占位符，后面为填充对象序列化后的字节数
             bout.write(LENGTH_PLACEHOLDER);
+            // CompactObjectOutputStream是netty提供的类，其实现了JDK的ObjectOutputStream，顾名思义用于压缩
+            // 同时把bout作为其底层输出流，意味着对象序列化后的字节直接写到了bout中
             oout = new CompactObjectOutputStream(bout);
+            // 调用writeObject方法，即表示开始序列化
             oout.writeObject(msg);
             oout.flush();
         } finally {
@@ -58,6 +67,7 @@ public class ObjectEncoder extends MessageToByteEncoder<Serializable> {
 
         int endIdx = out.writerIndex();
 
+        // 序列化完成，设置占位符的值，也就是对象序列化后的字节数量
         out.setInt(startIdx, endIdx - startIdx - 4);
     }
 }
