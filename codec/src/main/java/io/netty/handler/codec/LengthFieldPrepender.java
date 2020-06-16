@@ -156,6 +156,20 @@ public class LengthFieldPrepender extends MessageToMessageEncoder<ByteBuf> {
         this.lengthAdjustment = lengthAdjustment;
     }
 
+    /**
+     LengthFieldPrepender尤其值得说明的一点是，其提供了实现零拷贝的另一种思路(实际上编码过程，是零拷贝的一个重要应用场景)。
+
+     在Netty中我们可以使用ByteBufAllocator.directBuffer()创建直接缓冲区实例，从而避免数据从堆内存(用户空间)向直接内存(内核空间)的拷贝，这是系统层面的零拷贝；
+
+     也可以使用CompositeByteBuf把两个ByteBuf合并在一起，例如一个存放报文头，另一个存放报文体。而不是创建一个更大的ByteBuf，把两个小ByteBuf合并在一起，这是应用层面的零拷贝。
+
+     而LengthFieldPrepender，由于需要在原来的二进制数据之前添加一个Length字段，因此就需要对二者进行合并发送。但是LengthFieldPrepender并没有采用CompositeByteBuf，其编码过程如下：
+
+     LengthFieldPrepender实际上是先把Length字段(报文头)添加到List中，再把msg本身(报文提)天际到List中。而在发送数据时，LengthFieldPrepender的父类MessageToMessageEncoder
+     会按照List中的元素下标按照顺序发送，因此相当于间接的把Length字段添加到了msg之前。从而避免了创建一个更大的ByteBuf将Length字段和msg内容合并到一起。作为开发者的我们，在编写编码器的时候，
+     这种一种重要的实现零拷贝的参考思路。
+
+     */
     @Override
     protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception {
         int length = msg.readableBytes() + lengthAdjustment;
