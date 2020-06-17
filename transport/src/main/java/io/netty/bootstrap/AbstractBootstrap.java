@@ -278,22 +278,34 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
         return doBind(localAddress);
     }
 
+    /**
+     * 注意，这里如果main线程执行到regFuture.isDone()时，register还未完成，那么main线程是不会直接调用bind操作的，而是往regFuture上注册一个Listener，
+     * 这样channel register完成（注册到Selector并且调用了invokeHandlerAddedIfNeeded）之后，会调用safeSetSuccess，触发各个ChannelFutureListener，
+     * 最终会调用到这里的operationComplete方法，进而在执行bind操作。
+     */
     private ChannelFuture doBind(final SocketAddress localAddress) {
+        // 1、初始化注册操作
         final ChannelFuture regFuture = initAndRegister();
         final Channel channel = regFuture.channel();
         if (regFuture.cause() != null) {
             return regFuture;
         }
 
+        // 2. doBind0操作
         if (regFuture.isDone()) {
             // At this point we know that the registration was complete and successful.
             ChannelPromise promise = channel.newPromise();
             doBind0(regFuture, channel, localAddress, promise);
             return promise;
         } else {
+            // register还未完成，注册listener回调，在回调中调用doBind0
             // Registration future is almost always fulfilled already, but just in case it's not.
             final PendingRegistrationPromise promise = new PendingRegistrationPromise(channel);
             regFuture.addListener(new ChannelFutureListener() {
+                /**
+                 * channel register完成（注册到Selector并且调用了invokeHandlerAddedIfNeeded）之后，
+                 * 会调用safeSetSuccess，触发各个ChannelFutureListener，最终会调用到这里的operationComplete方法
+                 */
                 @Override
                 public void operationComplete(ChannelFuture future) throws Exception {
                     Throwable cause = future.cause();
