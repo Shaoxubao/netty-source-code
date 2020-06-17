@@ -73,14 +73,19 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
         }
 
         if (executor == null) {
+            // 类名为名称的线程工厂
+            // 该线程池没有任何队列，提交任务后，创建任何线程类型都是 FastThreadLocalRunnable, 并且立即start。
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
 
+        // 创建一个事件执行组
         children = new EventExecutor[nThreads];
 
+        // 初始化NioEventLoop,实际调用的是NioEventLoopGroup.newChild方法
         for (int i = 0; i < nThreads; i ++) {
             boolean success = false;
             try {
+                // 创建 new NioEventLoop
                 children[i] = newChild(executor, args);
                 success = true;
             } catch (Exception e) {
