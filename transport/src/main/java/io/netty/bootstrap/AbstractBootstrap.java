@@ -329,7 +329,11 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
     final ChannelFuture initAndRegister() {
         Channel channel = null;
         try {
+            // 1.创建(netty自定义)Channel实例(ReflectiveChannelFactory.newChannel())，并初始化channel为 NioServerSocketChannel 实例,
+            //   NioServerSocketChannel的父类AbstractNioChannel保存有nio的ServerSocketChannel
             channel = channelFactory.newChannel();
+
+            // 2.初始化channel(设置channel属性、设置channel.pipeline的ChannelInitializer，注意，ChannelInitializer是在channel注册到selector之后被回调的)
             init(channel);
         } catch (Throwable t) {
             if (channel != null) {
@@ -342,6 +346,7 @@ public abstract class AbstractBootstrap<B extends AbstractBootstrap<B, C>, C ext
             return new DefaultChannelPromise(new FailedChannel(), GlobalEventExecutor.INSTANCE).setFailure(t);
         }
 
+        // 3.向Selector注册channel
         ChannelFuture regFuture = config().group().register(channel);
         if (regFuture.cause() != null) {
             if (channel.isRegistered()) {
