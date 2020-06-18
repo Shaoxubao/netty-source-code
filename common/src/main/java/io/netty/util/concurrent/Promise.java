@@ -25,6 +25,9 @@ public interface Promise<V> extends Future<V> {
      * listeners.
      *
      * If it is success or failed already it will throw an {@link IllegalStateException}.
+     *
+     * 标记该 future 成功及设置其执行结果，并且会通知所有的 listeners。
+     * 如果该操作失败，将抛出异常(失败指的是该 future 已经有了结果了，成功的结果，或者失败的结果)
      */
     Promise<V> setSuccess(V result);
 
