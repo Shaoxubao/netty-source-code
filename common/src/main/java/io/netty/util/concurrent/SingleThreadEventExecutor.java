@@ -891,7 +891,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
     private void doStartThread() {
         assert thread == null;
         // 这里的 executor 大家是不是有点熟悉的感觉，它就是一开始我们实例化 NioEventLoop 的时候传进来的 ThreadPerTaskExecutor 的实例。
-        // 它是每次来一个任务，创建一个线程的那种 executor。一旦我们调用它的 execute 方法，它就会创建一个新的线程，所以这里终于会创建 Thread 实例
+        // 它是每次来一个任务，创建一个线程的那种 executor。一旦我们调用它的 execute 方法，它就会创建一个新的线程，所以这里终于会创建 Thread 实例并启动,
+        // 启动之后继而调用下面run方法
         executor.execute(new Runnable() {
             @Override
             public void run() {
@@ -904,7 +905,8 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 boolean success = false;
                 updateLastExecutionTime();
                 try {
-                    // 执行 SingleThreadEventExecutor 的 run() 方法，它在 NioEventLoop 中实现了
+                    // 执行 SingleThreadEventExecutor 的 run() 方法(由子类DefaultEventExecutor实现，真正调用DefaultEventExecutor的run()方法)，
+                    // 它在 NioEventLoop 中实现了
                     SingleThreadEventExecutor.this.run();
                     success = true;
                 } catch (Throwable t) {
