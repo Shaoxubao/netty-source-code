@@ -17,6 +17,11 @@ package io.netty.util.concurrent;
 
 import io.netty.util.internal.ObjectUtil;
 
+/**
+ *  FastThreadLocalRunnable 对所有 DefaultThreadFactory 创建出来的 Runnable 都进行了包装;
+ *  DefaultThreadFactory——>newThread(Runnable r)方法;
+ *
+ */
 final class FastThreadLocalRunnable implements Runnable {
     private final Runnable runnable;
 
