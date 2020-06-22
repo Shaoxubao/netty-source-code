@@ -907,6 +907,7 @@ public abstract class SingleThreadEventExecutor extends AbstractScheduledEventEx
                 try {
                     // 执行 SingleThreadEventExecutor 的 run() 方法(由子类DefaultEventExecutor实现，真正调用DefaultEventExecutor的run()方法)，
                     // 它在 NioEventLoop 中实现了
+                    // 类名.this一般用于内部类调用外部类的对象时使用，因为内部类使用this.调用的是内部类的域和方法，为了加以区别，所以使用类名.this来加以区分
                     SingleThreadEventExecutor.this.run();
                     success = true;
                 } catch (Throwable t) {
