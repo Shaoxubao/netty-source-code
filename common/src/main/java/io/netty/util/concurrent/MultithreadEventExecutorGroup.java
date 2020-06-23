@@ -74,7 +74,7 @@ public abstract class MultithreadEventExecutorGroup extends AbstractEventExecuto
 
         if (executor == null) {
             // 类名为名称的线程工厂
-            // 该线程池没有任何队列，提交任务后，创建任何线程类型都是 FastThreadLocalRunnable, 并且立即start。
+            // 该线程池没有任何队列，提交任务后，创建任何线程的任务类型都是被包装成 FastThreadLocalRunnable, 并且立即start。
             executor = new ThreadPerTaskExecutor(newDefaultThreadFactory());
         }
 
