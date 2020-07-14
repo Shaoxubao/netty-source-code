@@ -244,6 +244,28 @@ import java.nio.charset.UnsupportedCharsetException;
  *
  * Please refer to {@link ByteBufInputStream} and
  * {@link ByteBufOutputStream}.
+ *
+ * 主要是如下四个属性：
+ *
+ * readerIndex ，读索引。
+ * writerIndex ，写索引。
+ * capacity ，当前容量。
+ * maxCapacity ，最大容量。当 writerIndex 写入超过 capacity 时，可自动扩容。每次扩容的大小，为 capacity 的 2 倍。当然，前提是不能超过 maxCapacity 大小。
+ * 所以，ByteBuf 通过 readerIndex 和 writerIndex 两个索引，解决 ByteBuffer 的读写模式的问题。
+ *
+ * 四个大小关系很简单：readerIndex <= writerIndex <= capacity <= maxCapacity
+ *
+ * ByteBuf有8个核心子类：
+ * 按照内存类型分类：
+ * ① 堆内存字节缓冲区( HeapByteBuf )：底层为 JVM 堆内的字节数组，其特点是申请和释放效率较高。但是如果要进行 Socket 的 I/O 读写，需要额外多做一次内存复制，需要将堆内存对应的缓冲区复制到内核 Channel 中，性能可能会有一定程度的损耗。
+ * ② 直接内存字节缓冲区( DirectByteBuf )：堆外内存，为操作系统内核空间的字节数组，它由操作系统直接管理和操作，其申请和释放的效率会慢于堆缓冲区。但是将它写入或者从 SocketChannel 中读取时，会少一次内存复制，这样可以大大提高 I/O 效率，实现零拷贝。
+ * 按照 对象池 分类：
+ * ① 基于对象池( PooledByteBuf )：基于对象池的 ByteBuf 可以重用 ByteBuf ，也就是说它自己内部维护着一个对象池，当对象释放后会归还给对象池，这样就可以循环地利用创建的 ByteBuf，提升内存的使用率，降低由于高负载导致的频繁 GC。当需要大量且频繁创建缓冲区时，推荐使用该类缓冲区。
+ * ② 不使用对象池( UnpooledByteBuf )：对象池的管理和维护会比较困难，所以在不需要创建大量缓冲区对象时，推荐使用此类缓冲区。
+ * 按照 Unsafe 分类：
+ * ① 使用 Unsafe ：基于 Java sun.misc.Unsafe.Unsafe 的 API ，直接访问内存中的数据。
+ * ② 不使用 Unsafe ： 基于 HeapByteBuf 和 DirectByteBuf 的标准 API ，进行访问对应的数据。
+ *
  */
 @SuppressWarnings("ClassMayBeInterface")
 public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
@@ -324,7 +346,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     /**
      * Returns the {@code readerIndex} of this buffer.
      */
-    public abstract int readerIndex();
+    public abstract int readerIndex(); // 读取位置
 
     /**
      * Sets the {@code readerIndex} of this buffer.
@@ -339,7 +361,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
     /**
      * Returns the {@code writerIndex} of this buffer.
      */
-    public abstract int writerIndex();
+    public abstract int writerIndex(); // 写入位置
 
     /**
      * Sets the {@code writerIndex} of this buffer.
@@ -402,19 +424,19 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      *         {@code readerIndex} or if the specified {@code writerIndex} is
      *         greater than {@code this.capacity}
      */
-    public abstract ByteBuf setIndex(int readerIndex, int writerIndex);
+    public abstract ByteBuf setIndex(int readerIndex, int writerIndex); // 设置读取和写入位置
 
     /**
      * Returns the number of readable bytes which is equal to
      * {@code (this.writerIndex - this.readerIndex)}.
      */
-    public abstract int readableBytes();
+    public abstract int readableBytes(); // 剩余可读字节数
 
     /**
      * Returns the number of writable bytes which is equal to
      * {@code (this.capacity - this.writerIndex)}.
      */
-    public abstract int writableBytes();
+    public abstract int writableBytes(); // 剩余可写字节数
 
     /**
      * Returns the maximum possible number of writable bytes, which is equal to
@@ -464,7 +486,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * {@code readerIndex} by calling {@link #resetReaderIndex()}.
      * The initial value of the marked {@code readerIndex} is {@code 0}.
      */
-    public abstract ByteBuf markReaderIndex();
+    public abstract ByteBuf markReaderIndex(); // 标记读取位置
 
     /**
      * Repositions the current {@code readerIndex} to the marked
@@ -482,7 +504,7 @@ public abstract class ByteBuf implements ReferenceCounted, Comparable<ByteBuf> {
      * {@code writerIndex} by calling {@link #resetWriterIndex()}.
      * The initial value of the marked {@code writerIndex} is {@code 0}.
      */
-    public abstract ByteBuf markWriterIndex();
+    public abstract ByteBuf markWriterIndex(); // 标记写入位置
 
     /**
      * Repositions the current {@code writerIndex} to the marked
