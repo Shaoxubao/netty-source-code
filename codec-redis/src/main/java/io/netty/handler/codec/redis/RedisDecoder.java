@@ -40,6 +40,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
     private final int maxInlineMessageLength;
     private final RedisMessagePool messagePool;
 
+    // 保持当前序列化状态的字段，默认初始化状态为，反序列化指令类型
     // current decoding states
     private State state = State.DECODE_TYPE;
     private RedisMessageType type;
@@ -97,6 +98,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
+            // 循环读取信息，将信息完成的序列化
             for (;;) {
                 switch (state) {
                 case DECODE_TYPE:
@@ -142,6 +144,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
         remainingBulkLength = 0;
     }
 
+    // 解码消息类型
     private boolean decodeType(ByteBuf in) throws Exception {
         if (!in.isReadable()) {
             return false;
@@ -152,6 +155,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
         return true;
     }
 
+    // 解码单行字符串，错误信息，或者整型数据类型
     private boolean decodeInline(ByteBuf in, List<Object> out) throws Exception {
         ByteBuf lineBytes = readLine(in);
         if (lineBytes == null) {
@@ -166,6 +170,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
         return true;
     }
 
+    // 解码消息长度
     private boolean decodeLength(ByteBuf in, List<Object> out) throws Exception {
         ByteBuf lineByteBuf = readLine(in);
         if (lineByteBuf == null) {
@@ -192,6 +197,7 @@ public final class RedisDecoder extends ByteToMessageDecoder {
         }
     }
 
+    // 解码多行字符串
     private boolean decodeBulkString(ByteBuf in, List<Object> out) throws Exception {
         switch (remainingBulkLength) {
         case RedisConstants.NULL_VALUE: // $-1\r\n

@@ -25,11 +25,11 @@ import io.netty.util.internal.UnstableApi;
 public enum RedisMessageType {
 
     INLINE_COMMAND(null, true),
-    SIMPLE_STRING((byte) '+', true),
-    ERROR((byte) '-', true),
-    INTEGER((byte) ':', true),
-    BULK_STRING((byte) '$', false),
-    ARRAY_HEADER((byte) '*', false);
+    SIMPLE_STRING((byte) '+', true),    // 以 + 开头的单行字符串
+    ERROR((byte) '-', true),            // 以 - 开头的错误信息
+    INTEGER((byte) ':', true),          // 以 : 开头的整型数据
+    BULK_STRING((byte) '$', false),     // 以 $ 开头的多行字符串
+    ARRAY_HEADER((byte) '*', false);    // 以 * 开头的数组
 
     private final Byte value;
     private final boolean inline;
