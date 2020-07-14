@@ -18,6 +18,20 @@ package io.netty.channel;
 /**
  * {@link ChannelHandler} which adds callbacks for state changes. This allows the user
  * to hook in to state changes easily.
+ *
+ * Netty处理器重要概念
+ * 1.Netty的处理器可以分为两类：入站处理器和出战处理器
+ * 2.入站处理器顶层是ChannelInboundHandler,出战处理器顶层是ChannelOutboundHandler
+ * 3.数据处理时常用的编解码器都是处理器
+ * 4.编解码器：无论我们向网络中写入的什么类型(int、char、String、二进制等)，在网络传输中，都是以字节流的方式传输，
+ *   将数据由原本的形式转换为字节流的操作称为编码（encode），将数据由字节流形式转换为原本的形式或其他格式的操作成为解码（decode）
+ * 5.编码：本质上是一种出战处理器；所以编码是一种ChannelOutboundHandler
+ * 6.解码：本质上是一种入站处理器；所以解码是一种ChannelInboundHandler
+ * 7.在netty中，编码器通常以xxxEncoder命名；解码器通常以xxxDecoder命名
+ *
+ * 关于netty编解码器的重要结论：
+ * 1. 无论编码器还是解码器，其所接收的的消息类型必须与待处理的参数类型一致，否则该编码器或解码器并不会被执行
+ * 2.在解码器进行解码时，一定要判断缓冲（ByteBuf）中数据是否足够，否则会产生一些问题
  */
 public interface ChannelInboundHandler extends ChannelHandler {
 
