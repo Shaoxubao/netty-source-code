@@ -492,7 +492,7 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
             while (in.isReadable()) {
                 int outSize = out.size();
 
-                // out 非空，说明上一次解码有解码到消息
+                // out 非空，说明上一次解码有解码到消息，可以向下传播了
                 if (outSize > 0) {
                     // 触发 Channel Read 事件。可能是多条消息
                     fireChannelRead(ctx, out, outSize);
@@ -524,9 +524,10 @@ public abstract class ByteToMessageDecoder extends ChannelInboundHandlerAdapter 
                     break;
                 }
 
-                // 整列判断 `out.size() == 0` 比较合适。因为，如果 `outSize > 0` 那段，已经清理了 out 。
+                // 如果解码前后，out中对象的数量没变，这表明没有解码出新的对象
                 if (outSize == out.size()) {
-                    // 如果未读取任何字节，结束循环
+                    // 当没解码出新的对象时，累计器中可读的字节数在解码前后也没变，说明本次while循环读到的数据，
+                    // 不够解码出一个对象，因此中断循环，等待下一次读到数据
                     if (oldInputLength == in.readableBytes()) {
                         break;
                     } else {
