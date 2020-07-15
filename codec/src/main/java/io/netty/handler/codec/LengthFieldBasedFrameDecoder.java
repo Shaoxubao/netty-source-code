@@ -184,12 +184,15 @@ import io.netty.handler.codec.serialization.ObjectDecoder;
 public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
 
     private final ByteOrder byteOrder;
-    private final int maxFrameLength;
-    private final int lengthFieldOffset;     // 长度字段的偏差
+    private final int maxFrameLength;        // 发送的数据包最大长度
+    private final int lengthFieldOffset;     // 长度域偏移量，指的是长度域位于整个数据包字节数组中的下标；
     private final int lengthFieldLength;     // 长度字段占的字节数
-    private final int lengthFieldEndOffset;
-    private final int lengthAdjustment;      // 添加到长度字段的补偿值
-    private final int initialBytesToStrip;   // 从解码帧中第一次去除的字节数
+    private final int lengthFieldEndOffset;  // 长度字段结束的偏移量，是通过属性计算出来：lengthFieldOffset + lengthFieldLength
+    private final int lengthAdjustment;      // 添加到长度字段的补偿值,即长度域的偏移量矫正。
+                                             // 如果长度域的值，除了包含有效数据域的长度外，还包含了其他域（如长度域自身）长度，
+                                             // 那么，就需要进行矫正。矫正的值为：包长 - 长度域的值 – 长度域偏移 – 长度域长。
+    private final int initialBytesToStrip;   // 从解码帧中第一次去除的字节数,丢弃的起始字节数。丢弃处于有效数据前面的字节数量。比如前面有4个节点的长度域，则它的值为4。
+                                             // initialBytesToStrip=0 表示拆包后不剔除长度字段
     private final boolean failFast;
     private boolean discardingTooLongFrame;
     private long tooLongFrameLength;
@@ -228,6 +231,22 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
      *        the compensation value to add to the value of the length field
      * @param initialBytesToStrip
      *        the number of first bytes to strip out from the decoded frame
+     *
+     *  LengthFieldBasedFrameDecoder构造器，涉及5个参数，都与长度域（数据包中的长度字段）相关，具体介绍如下：
+     * （1） maxFrameLength - 发送的数据包最大长度；
+     * （2） lengthFieldOffset - 长度域偏移量，指的是长度域位于整个数据包字节数组中的下标；
+     * （3） lengthFieldLength - 长度域的自己的字节数长度。
+     * （4） lengthAdjustment – 长度域的偏移量矫正。 如果长度域的值，除了包含有效数据域的长度外，还包含了其他域（如长度域自身）长度，那么，就需要进行矫正。矫正的值为：包长 - 长度域的值 – 长度域偏移 – 长度域长。
+     * （5） initialBytesToStrip – 丢弃的起始字节数。丢弃处于有效数据前面的字节数量。比如前面有4个节点的长度域，则它的值为4。
+     *
+     *  LengthFieldBasedFrameDecoder decoder =n ew LengthFieldBasedFrameDecoder(1024, 0, 4, 0, 4);
+     *  第一个参数为1024，表示数据包的最大长度为1024；
+     *  第二个参数0，表示长度域的偏移量为0，也就是长度域放在了最前面，处于包的起始位置；
+     *  第三个参数为4，表示长度域占用4个字节；
+     *  第四个参数为0，表示长度域保存的值，仅仅为有效数据长度，不包含其他域（如长度域）的长度；
+     *  第五个参数为4，表示最终的取到的目标数据包，抛弃最前面的4个字节数据，长度域的值被抛弃。
+     *
+     *
      */
     public LengthFieldBasedFrameDecoder(
             int maxFrameLength,
@@ -409,23 +428,30 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
             discardingTooLongFrame(in);
         }
 
+        // 可读字节数小于长度字段的结束索引，肯定没法解码出数据
+        //  lengthFieldEndOffset = lengthFieldOffset + lengthFieldLength
         if (in.readableBytes() < lengthFieldEndOffset) {
             return null;
         }
 
+        // 获取到长度字段的位置
         int actualLengthFieldOffset = in.readerIndex() + lengthFieldOffset;
+        // 根据长度字段的位置，以及长度字段的长度，计算出长度
         long frameLength = getUnadjustedFrameLength(in, actualLengthFieldOffset, lengthFieldLength, byteOrder);
 
+        // 计算出的长度值小于0，肯定不合法，解码失败
         if (frameLength < 0) {
             failOnNegativeLengthField(in, frameLength, lengthFieldEndOffset);
         }
 
+        // 根据lengthAdjustment进行长度调整
         frameLength += lengthAdjustment + lengthFieldEndOffset;
 
         if (frameLength < lengthFieldEndOffset) {
             failOnFrameLengthLessThanLengthFieldEndOffset(in, frameLength, lengthFieldEndOffset);
         }
 
+        // 超过最大长度
         if (frameLength > maxFrameLength) {
             exceededFrameLength(in, frameLength);
             return null;
@@ -437,15 +463,19 @@ public class LengthFieldBasedFrameDecoder extends ByteToMessageDecoder {
             return null;
         }
 
+        // 跳过的字节数大于长度，说明数据不合法，无法解码出数据
         if (initialBytesToStrip > frameLengthInt) {
             failOnFrameLengthLessThanInitialBytesToStrip(in, frameLength, initialBytesToStrip);
         }
+        // 跳过指定的字节数
         in.skipBytes(initialBytesToStrip);
 
         // extract frame
+        // 解码，就是根据索引范围，从字节数组中，读取出数据
         int readerIndex = in.readerIndex();
         int actualFrameLength = frameLengthInt - initialBytesToStrip;
         ByteBuf frame = extractFrame(ctx, in, readerIndex, actualFrameLength);
+        // 移动读指针
         in.readerIndex(readerIndex + actualFrameLength);
         return frame;
     }
